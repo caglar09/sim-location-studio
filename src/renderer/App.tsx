@@ -117,6 +117,7 @@ export default function App() {
       await inject(point)
     } else {
       setPlannedPoints([])
+      setProgress(0)
       setRoutePoints((points) => {
         setActiveWaypoint(points.length)
         return [...points, point]
@@ -128,6 +129,7 @@ export default function App() {
     if (routePoints.length < 2) { setStatus('Add at least two route points.'); return }
     setStatus('Building route…')
     const result = await window.simLocation.buildRoute({ points: routePoints, mode: travelMode, snapToRoads })
+    setProgress(0)
     setPlannedPoints(result.points)
     setStatus(result.warning || `${result.source === 'osrm' ? 'Road route' : 'Manual route'} ready · ${formatDistance(result.distanceMeters)}`)
   }
@@ -138,7 +140,8 @@ export default function App() {
     setPlayback('playing')
     const spacing = Math.max(1.5, (speedKmh / 3.6) * 0.75)
     const samples = interpolateRoute(activeRoute, spacing)
-    let startIndex = Math.min(samples.length - 1, Math.floor(progress * Math.max(0, samples.length - 1)))
+    let startIndex = 0
+    setProgress(0)
 
     do {
       for (let i = startIndex; i < samples.length; i++) {
@@ -186,6 +189,7 @@ export default function App() {
 
   function updateWaypoint(index: number, point: GeoPoint) {
     setPlannedPoints([])
+    setProgress(0)
     setRoutePoints((points) => points.map((item, i) => i === index ? point : item))
     setActiveWaypoint(index)
     setStatus(`Waypoint ${index + 1} moved.`)
@@ -193,13 +197,27 @@ export default function App() {
 
   function removeWaypoint(index: number) {
     setPlannedPoints([])
+    setProgress(0)
     setRoutePoints((points) => points.filter((_, i) => i !== index))
     setActiveWaypoint((current) => current === null ? null : current === index ? null : current > index ? current - 1 : current)
     setStatus(`Waypoint ${index + 1} removed.`)
   }
 
+  function reverseRoute() {
+    stop()
+    setRoutePoints((points) => {
+      const next = [...points].reverse()
+      setActiveWaypoint((current) => current === null ? null : next.length - 1 - current)
+      return next
+    })
+    setPlannedPoints((points) => points.length > 1 ? [...points].reverse() : [])
+    setProgress(0)
+    setStatus('Route reversed · playback will start from the new first point.')
+  }
+
   function undoPoint() {
     setPlannedPoints([])
+    setProgress(0)
     setRoutePoints((points) => {
       const next = points.slice(0, -1)
       setActiveWaypoint(next.length ? next.length - 1 : null)
@@ -306,21 +324,26 @@ export default function App() {
         <section>
           <h3>Route</h3>
           <div className="route-stats"><div><span>Distance</span><b>{formatDistance(distance)}</b></div><div><span>ETA</span><b>{formatDuration(duration)}</b></div><div><span>Speed</span><b>{speedKmh} km/h</b></div></div>
-          <div className="button-row"><button disabled={routePoints.length < 2} onClick={prepareRoute}>Build</button><button disabled={!routePoints.length} onClick={undoPoint}>Undo</button><button disabled={routePoints.length < 2} onClick={() => { setPlannedPoints([]); setRoutePoints((p) => { const next = [...p].reverse(); setActiveWaypoint((current) => current === null ? null : next.length - 1 - current); return next }); setStatus('Route reversed.') }}>Reverse</button><button disabled={!routePoints.length} onClick={clearRoute}>Clear</button></div>
+          <div className="button-row"><button disabled={routePoints.length < 2} onClick={prepareRoute}>Build</button><button disabled={!routePoints.length} onClick={undoPoint}>Undo</button><button disabled={routePoints.length < 2} onClick={reverseRoute}>Reverse</button><button disabled={!routePoints.length} onClick={clearRoute}>Clear</button></div>
           <div className="progress"><i style={{ width: `${progress * 100}%` }}/></div>
           <div className="playback-row">
             <button className="primary" disabled={activeRoute.length < 2 || playback !== 'idle'} onClick={play}>▶ Play</button>
             <button disabled={playback === 'idle'} onClick={togglePause}>{playback === 'paused' ? '▶ Resume' : 'Ⅱ Pause'}</button>
             <button disabled={playback === 'idle'} onClick={stop}>■ Stop</button>
           </div>
-          <div className="button-row"><button onClick={exportRoute} disabled={!activeRoute.length}>Export JSON</button><label className="file-button">Import JSON<input type="file" accept="application/json,.json" onChange={(e) => e.target.files?.[0] && importRoute(e.target.files[0])}/></label></div>
-          <div className="button-row"><button onClick={exportGpx} disabled={!activeRoute.length}>Export GPX</button><label className="file-button">Import GPX<input type="file" accept="application/gpx+xml,.gpx" onChange={(e) => e.target.files?.[0] && importGpx(e.target.files[0])}/></label></div>
         </section>
 
         <section>
           <h3>Current location</h3>
           <div className="coordinate-box">{cursor ? <><b>{cursor.lat.toFixed(6)}</b><b>{cursor.lng.toFixed(6)}</b></> : <span>No injected coordinate yet.</span>}</div>
           <div className="button-row"><button disabled={!cursor} onClick={saveFavorite}>☆ Favorite</button><button onClick={resetLocation} disabled={!selectedDevice}>Reset</button></div>
+        </section>
+
+        <section>
+          <h3>Route files</h3>
+          <p className="hint">Save the current route or load a previously recorded scenario.</p>
+          <div className="button-row"><button onClick={exportRoute} disabled={!activeRoute.length}>Export JSON</button><label className="file-button">Import JSON<input type="file" accept="application/json,.json" onChange={(e) => e.target.files?.[0] && importRoute(e.target.files[0])}/></label></div>
+          <div className="button-row"><button onClick={exportGpx} disabled={!activeRoute.length}>Export GPX</button><label className="file-button">Import GPX<input type="file" accept="application/gpx+xml,.gpx" onChange={(e) => e.target.files?.[0] && importGpx(e.target.files[0])}/></label></div>
         </section>
       </aside>
 
