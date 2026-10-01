@@ -49,26 +49,103 @@ function manualRoute(points: GeoPoint[], warning?: string): RouteResult {
   return { points, distanceMeters, source: 'manual', warning }
 }
 
+function decodePolyline6(encoded: string): GeoPoint[] {
+  const points: GeoPoint[] = []
+  let index = 0
+  let lat = 0
+  let lng = 0
+  const factor = 1e6
+
+  while (index < encoded.length) {
+    let shift = 0
+    let result = 0
+    let byte: number
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20 && index <= encoded.length)
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1)
+
+    shift = 0
+    result = 0
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20 && index <= encoded.length)
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1)
+
+    points.push({ lat: lat / factor, lng: lng / factor })
+  }
+
+  return points
+}
+
+function valhallaCosting(mode: RouteRequest['mode']): 'pedestrian' | 'bicycle' | 'auto' {
+  if (mode === 'walk') return 'pedestrian'
+  if (mode === 'bike') return 'bicycle'
+  return 'auto'
+}
+
 async function buildRoute(request: RouteRequest): Promise<RouteResult> {
-  if (request.points.length < 2 || !request.snapToRoads || request.mode !== 'drive') {
-    return manualRoute(request.points, request.snapToRoads && request.mode !== 'drive' ? 'Road snapping currently uses the public OSRM driving profile. Walking and cycling stay on your manually drawn path.' : undefined)
+  if (request.points.length < 2 || !request.snapToRoads) {
+    return manualRoute(request.points, request.snapToRoads ? undefined : 'Path following is disabled; using the manually drawn line.')
   }
 
   try {
-    const coordinates = request.points.map((p) => `${p.lng},${p.lat}`).join(';')
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=false`
-    const response = await fetch(url, { headers: { 'User-Agent': 'SimLocationStudio/0.1 (+https://github.com/caglar09/sim-location-studio)' } })
-    if (!response.ok) throw new Error(`OSRM returned HTTP ${response.status}`)
-    const payload = await response.json() as { routes?: Array<{ distance: number; geometry: { coordinates: [number, number][] } }> }
-    const first = payload.routes?.[0]
-    if (!first) throw new Error('No route returned')
+    const response = await fetch('https://valhalla.openstreetmap.de/route', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'SimLocationStudio/0.1 (+https://github.com/caglar09/sim-location-studio)'
+      },
+      body: JSON.stringify({
+        locations: request.points.map((point) => ({
+          lat: point.lat,
+          lon: point.lng,
+          type: 'break'
+        })),
+        costing: valhallaCosting(request.mode),
+        units: 'kilometers',
+        directions_options: { units: 'kilometers' }
+      })
+    })
+
+    if (!response.ok) throw new Error(`Valhalla returned HTTP ${response.status}`)
+
+    const payload = await response.json() as {
+      trip?: {
+        legs?: Array<{ shape?: string }>
+      }
+      error?: string
+      error_code?: number
+    }
+
+    if (!payload.trip?.legs?.length) {
+      throw new Error(payload.error || (payload.error_code ? `Valhalla error ${payload.error_code}` : 'No routable path returned'))
+    }
+
+    const points: GeoPoint[] = []
+    for (const leg of payload.trip.legs) {
+      if (!leg.shape) continue
+      const decoded = decodePolyline6(leg.shape)
+      if (points.length && decoded.length) decoded.shift()
+      points.push(...decoded)
+    }
+
+    if (points.length < 2) throw new Error('Route shape was empty')
+
+    const result = manualRoute(points)
     return {
-      points: first.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
-      distanceMeters: first.distance,
-      source: 'osrm'
+      ...result,
+      source: 'valhalla'
     }
   } catch (error) {
-    return manualRoute(request.points, `Road routing unavailable; using the manually drawn route. ${error instanceof Error ? error.message : String(error)}`)
+    return manualRoute(
+      request.points,
+      `Routable path unavailable; using the manually drawn line. ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
