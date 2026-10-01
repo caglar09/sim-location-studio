@@ -1,0 +1,55 @@
+{
+  "name": "sim-location-studio",
+  "version": "0.1.0",
+  "description": "Cross-platform location simulation studio for iOS Simulator and Android Emulator.",
+  "main": "./out/main/index.js",
+  "author": "caglar09",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "maplibre-gl": "6.11.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "electron": "44.5.1",
+    "electron-builder": "26.16.1",
+    "electron-vite": "5.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.2"
+  },
+  "build": {
+    "appId": "dev.simlocation.studio",
+    "productName": "Sim Location Studio",
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "category": "Development",
+      "target": ["AppImage", "deb"]
+    }
+  }
+}
