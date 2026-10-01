@@ -17,7 +17,7 @@
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
+    "@vitejs/plugin-react": "5.2.0",
     "maplibre-gl": "6.11.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -30,7 +30,7 @@
     "electron-builder": "26.16.1",
     "electron-vite": "5.0.0",
     "typescript": "7.0.2",
-    "vite": "8.3.2"
+    "vite": "7.3.6"
   },
   "build": {
     "appId": "dev.simlocation.studio",
@@ -42,14 +42,23 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
       "category": "Development",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     }
   }
 }
