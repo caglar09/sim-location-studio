@@ -161,7 +161,8 @@ export default function App() {
     const result = await window.simLocation.buildRoute({ points: routePoints, mode: travelMode, snapToRoads })
     setProgress(0)
     setPlannedPoints(result.points)
-    setStatus(result.warning || `${result.source === 'osrm' ? 'Road route' : 'Manual route'} ready · ${formatDistance(result.distanceMeters)}`)
+    const routeLabel = result.source === 'valhalla' ? `${travelMode === 'walk' ? 'Pedestrian' : travelMode === 'bike' ? 'Bicycle' : 'Driving'} network route` : 'Manual route'
+    setStatus(result.warning || `${routeLabel} ready · ${formatDistance(result.distanceMeters)}`)
   }
 
   async function play() {
@@ -347,7 +348,7 @@ export default function App() {
             {(['walk', 'bike', 'drive', 'custom'] as TravelMode[]).map((mode) => <button key={mode} className={travelMode === mode ? 'active' : ''} onClick={() => { setTravelMode(mode); setPlannedPoints([]) }}>{mode === 'walk' ? '🚶 Walk' : mode === 'bike' ? '🚲 Bike' : mode === 'drive' ? '🚗 Drive' : '⚙ Custom'}</button>)}
           </div>
           {travelMode === 'custom' && <label className="field">Speed <div><input type="range" min="1" max="160" value={customSpeed} onChange={(e) => setCustomSpeed(Number(e.target.value))}/><b>{customSpeed} km/h</b></div></label>}
-          <label className="check"><input type="checkbox" checked={snapToRoads} onChange={(e) => { setSnapToRoads(e.target.checked); setPlannedPoints([]) }}/><span>Snap driving route to roads</span></label>
+          <label className="check"><input type="checkbox" checked={snapToRoads} onChange={(e) => { setSnapToRoads(e.target.checked); setPlannedPoints([]); setProgress(0) }}/><span>Follow routable paths</span></label>
           <label className="check"><input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)}/><span>Loop route</span></label>
         </section>
 
@@ -409,8 +410,8 @@ export default function App() {
         <section>
           <h3>Test scenarios</h3>
           <div className="scenario-list">
-            <button onClick={() => { setTravelMode('walk'); setCustomSpeed(5); setStatus('Walking preset selected. Draw or import a route.') }}><b>Urban walking</b><span>5 km/h pedestrian movement</span></button>
-            <button onClick={() => { setTravelMode('drive'); setSnapToRoads(true); setStatus('Driving preset selected with road snapping.') }}><b>Road trip</b><span>50 km/h road-following movement</span></button>
+            <button onClick={() => { setTravelMode('walk'); setCustomSpeed(5); setSnapToRoads(true); setPlannedPoints([]); setStatus('Walking preset selected with pedestrian routing.') }}><b>Urban walking</b><span>5 km/h pedestrian movement</span></button>
+            <button onClick={() => { setTravelMode('drive'); setSnapToRoads(true); setPlannedPoints([]); setStatus('Driving preset selected with road routing.') }}><b>Road trip</b><span>50 km/h road-following movement</span></button>
             <button onClick={() => { setTravelMode('custom'); setCustomSpeed(120); setStatus('High-speed movement preset selected.') }}><b>High-speed handoff</b><span>Useful for geofence and region-transition tests</span></button>
           </div>
         </section>
