@@ -72,35 +72,6 @@ async function buildRoute(request: RouteRequest): Promise<RouteResult> {
   }
 }
 
-async function approximateHostLocation() {
-  try {
-    const response = await fetch('https://ipwho.is/', {
-      headers: { 'User-Agent': 'SimLocationStudio/0.1 (+https://github.com/caglar09/sim-location-studio)' }
-    })
-    if (!response.ok) throw new Error(`Location service returned HTTP ${response.status}`)
-    const data = await response.json() as {
-      success?: boolean
-      latitude?: number
-      longitude?: number
-      city?: string
-      region?: string
-      country?: string
-      message?: string
-    }
-    if (data.success === false || !Number.isFinite(data.latitude) || !Number.isFinite(data.longitude)) {
-      throw new Error(data.message || 'Approximate location unavailable')
-    }
-    return {
-      ok: true,
-      point: { lat: Number(data.latitude), lng: Number(data.longitude) },
-      accuracy: 'approximate' as const,
-      label: [data.city, data.region, data.country].filter(Boolean).join(', ')
-    }
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) }
-  }
-}
-
 async function searchPlaces(query: string): Promise<SearchResult[]> {
   if (query.trim().length < 2) return []
   const url = new URL('https://nominatim.openstreetmap.org/search')
@@ -131,7 +102,15 @@ app.whenReady().then(() => {
   ipcMain.handle('location:clear', (_event, platform, deviceId) => clearLocation(platform, deviceId))
   ipcMain.handle('places:search', (_event, query) => searchPlaces(query))
   ipcMain.handle('route:build', (_event, request) => buildRoute(request))
-  ipcMain.handle('host-location:approximate', () => approximateHostLocation())
+  ipcMain.handle('system:open-location-settings', async () => {
+    if (process.platform !== 'darwin') return false
+    try {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices')
+      return true
+    } catch {
+      return false
+    }
+  })
   ipcMain.handle('app:info', () => ({ version: app.getVersion(), platform: process.platform }))
   createWindow()
 
