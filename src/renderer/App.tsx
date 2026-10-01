@@ -41,6 +41,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [favorites, setFavorites] = useState<Array<{ name: string; point: GeoPoint }>>(() => storage.get('favorites', []))
   const [controlsOpen, setControlsOpen] = useState(false)
+  const [locationPermissionBlocked, setLocationPermissionBlocked] = useState(false)
   const playbackToken = useRef(0)
 
   const selectedDevice = devices.find((d) => d.id === selectedId)
@@ -60,40 +61,59 @@ export default function App() {
   useEffect(() => { storage.set('route', routePoints) }, [routePoints])
   useEffect(() => { storage.set('favorites', favorites) }, [favorites])
 
-  const focusApproximateLocation = useCallback(async () => {
-    setStatus('Precise location unavailable · finding approximate location…')
-    const fallback = await window.simLocation.getApproximateLocation()
-    if (!fallback.ok || !fallback.point) {
-      setStatus(fallback.message ? `Location unavailable: ${fallback.message}` : 'Location is currently unavailable.')
-      return
-    }
-    setUserLocation(fallback.point)
-    setFocusPoint(fallback.point)
-    setStatus(`Approximate location · ${fallback.label || 'network based'}`)
-  }, [])
-
   const locateUser = useCallback((announce = true) => {
     if (!navigator.geolocation) {
-      void focusApproximateLocation()
+      setLocationPermissionBlocked(true)
+      setStatus('macOS location is unavailable. Check Location Services.')
       return
     }
+
     if (announce) setStatus('Requesting your Mac location…')
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude }
         setUserLocation(point)
         setFocusPoint(point)
-        setStatus(`Focused on your location · accuracy ±${Math.round(position.coords.accuracy)} m`)
+        setLocationPermissionBlocked(false)
+        setStatus(`Focused on your Mac location · accuracy ±${Math.round(position.coords.accuracy)} m`)
       },
       (error) => {
+        setLocationPermissionBlocked(true)
         if (error.code === error.PERMISSION_DENIED) {
-          setStatus('Location permission denied · using approximate network location.')
+          setStatus('Location access is disabled for this app in macOS Location Services.')
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setStatus('macOS could not determine your location. Check Location Services and Wi-Fi.')
+        } else {
+          setStatus('Mac location request timed out. Check Location Services permission.')
         }
-        void focusApproximateLocation()
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     )
-  }, [focusApproximateLocation])
+  }, [])
+
+  const openLocationSettings = useCallback(async () => {
+    const opened = await window.simLocation.openLocationSettings()
+    if (!opened) setStatus('Open System Settings → Privacy & Security → Location Services.')
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function checkPermission() {
+      try {
+        const result = await navigator.permissions?.query({ name: 'geolocation' as PermissionName })
+        if (!cancelled) setLocationPermissionBlocked(result?.state === 'denied')
+      } catch {
+        // Permissions API availability varies by Electron/macOS version.
+      }
+    }
+    void checkPermission()
+    const onVisibility = () => { if (document.visibilityState === 'visible') void checkPermission() }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
 
   useEffect(() => {
     if (storage.get('host-location-asked', false)) return
@@ -359,6 +379,15 @@ export default function App() {
 
       <main className="workspace">
         <button className="locate-button" onClick={() => locateUser(true)} title="Focus on my Mac location">◎ My location</button>
+        {locationPermissionBlocked && (
+          <div className="location-permission-card">
+            <div>
+              <strong>Location access is off</strong>
+              <span>Enable {diagnostics?.platform === 'darwin' ? 'Electron.app (dev) or Sim Location Studio' : 'location access'} in system privacy settings.</span>
+            </div>
+            <button onClick={openLocationSettings}>Open Location Settings</button>
+          </div>
+        )}
         <div className="search-panel">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search city, address or place…" />
           {searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.point.lat}-${result.point.lng}`} onClick={() => { setSearch(''); setSearchResults([]); setFocusPoint(result.point); if (interaction === 'teleport') inject(result.point); else setRoutePoints((p) => { setActiveWaypoint(p.length); return [...p, result.point] }) }}><strong>{result.displayName.split(',')[0]}</strong><span>{result.displayName}</span></button>)}</div>}
