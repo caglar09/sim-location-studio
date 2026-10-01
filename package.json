@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "Cross-platform location simulation studio for iOS Simulator and Android Emulator.",
   "main": "./out/main/index.js",
-  "author": "caglar09",
+  "author": {
+    "name": "caglar09",
+    "email": "caglar09@users.noreply.github.com"
+  },
   "license": "MIT",
   "type": "module",
   "scripts": {
