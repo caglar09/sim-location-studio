@@ -9,16 +9,22 @@ permissions:
 
 jobs:
   hydrate:
-    if: ${{ hashFiles('bootstrap.mjs') != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check bootstrap
+        id: bootstrap
+        shell: bash
+        run: |
+          if [ -f bootstrap.mjs ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
       - name: Hydrate project
+        if: steps.bootstrap.outputs.exists == 'true'
         run: node bootstrap.mjs
       - name: Commit generated project
+        if: steps.bootstrap.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
