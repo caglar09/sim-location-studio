@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { join } from 'node:path'
 import os from 'node:os'
 import { diagnostics, listDevices, setLocation, clearLocation } from './providers'
@@ -92,6 +92,10 @@ async function searchPlaces(query: string): Promise<SearchResult[]> {
 }
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => permission === 'geolocation')
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'geolocation')
+  })
   ipcMain.handle('devices:list', () => listDevices())
   ipcMain.handle('diagnostics:get', async () => ({ platform: process.platform, arch: os.arch(), tools: await diagnostics() }))
   ipcMain.handle('location:set', (_event, platform, deviceId, point) => setLocation(platform, deviceId, point))
