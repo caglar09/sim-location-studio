@@ -60,9 +60,21 @@ export default function App() {
   useEffect(() => { storage.set('route', routePoints) }, [routePoints])
   useEffect(() => { storage.set('favorites', favorites) }, [favorites])
 
+  const focusApproximateLocation = useCallback(async () => {
+    setStatus('Precise location unavailable · finding approximate location…')
+    const fallback = await window.simLocation.getApproximateLocation()
+    if (!fallback.ok || !fallback.point) {
+      setStatus(fallback.message ? `Location unavailable: ${fallback.message}` : 'Location is currently unavailable.')
+      return
+    }
+    setUserLocation(fallback.point)
+    setFocusPoint(fallback.point)
+    setStatus(`Approximate location · ${fallback.label || 'network based'}`)
+  }, [])
+
   const locateUser = useCallback((announce = true) => {
     if (!navigator.geolocation) {
-      setStatus('Geolocation is not available on this system.')
+      void focusApproximateLocation()
       return
     }
     if (announce) setStatus('Requesting your Mac location…')
@@ -74,16 +86,14 @@ export default function App() {
         setStatus(`Focused on your location · accuracy ±${Math.round(position.coords.accuracy)} m`)
       },
       (error) => {
-        const message = error.code === error.PERMISSION_DENIED
-          ? 'Location permission was denied. Enable it in System Settings → Privacy & Security → Location Services.'
-          : error.code === error.POSITION_UNAVAILABLE
-            ? 'Your Mac location is currently unavailable.'
-            : 'Location request timed out.'
-        setStatus(message)
+        if (error.code === error.PERMISSION_DENIED) {
+          setStatus('Location permission denied · using approximate network location.')
+        }
+        void focusApproximateLocation()
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 }
     )
-  }, [])
+  }, [focusApproximateLocation])
 
   useEffect(() => {
     if (storage.get('host-location-asked', false)) return
