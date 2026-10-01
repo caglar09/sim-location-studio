@@ -30,6 +30,7 @@ export default function App() {
   const [plannedPoints, setPlannedPoints] = useState<GeoPoint[]>([])
   const [activeWaypoint, setActiveWaypoint] = useState<number | null>(null)
   const [cursor, setCursor] = useState<GeoPoint | undefined>()
+  const [userLocation, setUserLocation] = useState<GeoPoint | undefined>()
   const [focusPoint, setFocusPoint] = useState<GeoPoint | undefined>()
   const [status, setStatus] = useState('Ready')
   const [playback, setPlayback] = useState<PlaybackState>('idle')
@@ -57,6 +58,38 @@ export default function App() {
   useEffect(() => { refresh() }, [refresh])
   useEffect(() => { storage.set('route', routePoints) }, [routePoints])
   useEffect(() => { storage.set('favorites', favorites) }, [favorites])
+
+  const locateUser = useCallback((announce = true) => {
+    if (!navigator.geolocation) {
+      setStatus('Geolocation is not available on this system.')
+      return
+    }
+    if (announce) setStatus('Requesting your Mac location…')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude }
+        setUserLocation(point)
+        setFocusPoint(point)
+        setStatus(`Focused on your location · accuracy ±${Math.round(position.coords.accuracy)} m`)
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location permission was denied. Enable it in System Settings → Privacy & Security → Location Services.'
+          : error.code === error.POSITION_UNAVAILABLE
+            ? 'Your Mac location is currently unavailable.'
+            : 'Location request timed out.'
+        setStatus(message)
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    )
+  }, [])
+
+  useEffect(() => {
+    if (storage.get('host-location-asked', false)) return
+    storage.set('host-location-asked', true)
+    const timer = window.setTimeout(() => locateUser(false), 700)
+    return () => window.clearTimeout(timer)
+  }, [locateUser])
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -282,11 +315,12 @@ export default function App() {
       </aside>
 
       <main className="workspace">
+        <button className="locate-button" onClick={() => locateUser(true)} title="Focus on my Mac location">◎ My location</button>
         <div className="search-panel">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search city, address or place…" />
           {searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.point.lat}-${result.point.lng}`} onClick={() => { setSearch(''); setSearchResults([]); setFocusPoint(result.point); if (interaction === 'teleport') inject(result.point); else setRoutePoints((p) => { setActiveWaypoint(p.length); return [...p, result.point] }) }}><strong>{result.displayName.split(',')[0]}</strong><span>{result.displayName}</span></button>)}</div>}
         </div>
-        <MapCanvas routePoints={activeRoute} waypointPoints={routePoints} cursor={cursor} mode={interaction} onMapClick={handleMapClick} onWaypointChange={updateWaypoint} onWaypointRemove={removeWaypoint} onWaypointSelect={setActiveWaypoint} activeWaypoint={activeWaypoint} focusPoint={focusPoint}/>
+        <MapCanvas routePoints={activeRoute} waypointPoints={routePoints} cursor={cursor} userLocation={userLocation} mode={interaction} onMapClick={handleMapClick} onWaypointChange={updateWaypoint} onWaypointRemove={removeWaypoint} onWaypointSelect={setActiveWaypoint} activeWaypoint={activeWaypoint} focusPoint={focusPoint}/>
         <div className="map-help"><b>{interaction === 'teleport' ? 'Teleport mode' : 'Route mode'}</b><span>{interaction === 'teleport' ? 'Click map → set simulator location' : `${routePoints.length} waypoint${routePoints.length === 1 ? '' : 's'} · drag pins to edit · double-click to remove`}</span></div>
       </main>
 
