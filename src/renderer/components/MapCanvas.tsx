@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import maplibregl, { GeoJSONSource, Map } from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from 'maplibre-gl'
 import type { GeoPoint } from '../../shared/types'
 
 interface Props {
@@ -14,7 +15,7 @@ const emptyLine = { type: 'FeatureCollection', features: [] } as const
 
 export default function MapCanvas({ routePoints, cursor, mode, onMapClick, focusPoint }: Props) {
   const container = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<Map | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
@@ -41,7 +42,7 @@ export default function MapCanvas({ routePoints, cursor, mode, onMapClick, focus
     })
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
-    map.on('click', (event) => clickRef.current({ lat: event.lngLat.lat, lng: event.lngLat.lng }))
+    map.on('click', (event: MapMouseEvent) => clickRef.current({ lat: event.lngLat.lat, lng: event.lngLat.lng }))
     map.on('load', () => {
       map.addSource('route', { type: 'geojson', data: emptyLine })
       map.addLayer({
