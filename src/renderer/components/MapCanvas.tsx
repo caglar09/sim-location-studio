@@ -7,6 +7,7 @@ interface Props {
   routePoints: GeoPoint[]
   waypointPoints: GeoPoint[]
   cursor?: GeoPoint
+  userLocation?: GeoPoint
   mode: 'teleport' | 'route'
   onMapClick(point: GeoPoint): void
   onWaypointChange(index: number, point: GeoPoint): void
@@ -22,6 +23,7 @@ export default function MapCanvas({
   routePoints,
   waypointPoints,
   cursor,
+  userLocation,
   mode,
   onMapClick,
   onWaypointChange,
@@ -33,6 +35,7 @@ export default function MapCanvas({
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
+  const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const waypointMarkersRef = useRef<maplibregl.Marker[]>([])
   const clickRef = useRef(onMapClick)
   const changeRef = useRef(onWaypointChange)
@@ -133,6 +136,22 @@ export default function MapCanvas({
       waypointMarkersRef.current = []
     }
   }, [waypointPoints, activeWaypoint, mode])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!userLocation) {
+      userMarkerRef.current?.remove()
+      userMarkerRef.current = null
+      return
+    }
+    if (!userMarkerRef.current) {
+      const el = document.createElement('div')
+      el.className = 'user-location-marker'
+      el.title = 'Your Mac location'
+      userMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat([userLocation.lng, userLocation.lat]).addTo(map)
+    } else userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat])
+  }, [userLocation])
 
   useEffect(() => {
     const map = mapRef.current
