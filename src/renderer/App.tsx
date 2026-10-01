@@ -40,6 +40,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [favorites, setFavorites] = useState<Array<{ name: string; point: GeoPoint }>>(() => storage.get('favorites', []))
+  const [controlsOpen, setControlsOpen] = useState(false)
   const playbackToken = useRef(0)
 
   const selectedDevice = devices.find((d) => d.id === selectedId)
@@ -261,10 +262,19 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><div className="brand-mark">S</div><div><strong>Sim Location Studio</strong><span>Location simulation for app developers</span></div></div>
-        <div className="top-actions"><button onClick={refresh}>Refresh devices</button><span className="status-pill">{status}</span></div>
+        <div className="top-actions">
+          <button className="controls-toggle" onClick={() => setControlsOpen((open) => !open)} aria-expanded={controlsOpen}>☰ Controls</button>
+          <button className="refresh-button" onClick={refresh}>Refresh devices</button>
+          <span className="status-pill">{status}</span>
+        </div>
       </header>
 
-      <aside className="sidebar">
+      <button className={`sidebar-backdrop${controlsOpen ? ' visible' : ''}`} aria-label="Close controls" onClick={() => setControlsOpen(false)} />
+      <aside className={`sidebar${controlsOpen ? ' open' : ''}`}>
+        <div className="sidebar-mobile-head">
+          <strong>Controls</strong>
+          <button className="icon-button" onClick={() => setControlsOpen(false)} aria-label="Close controls">×</button>
+        </div>
         <section>
           <h3>Target device</h3>
           <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
