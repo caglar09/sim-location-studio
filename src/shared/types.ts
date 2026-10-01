@@ -54,7 +54,7 @@ export interface RouteRequest {
 export interface RouteResult {
   points: GeoPoint[]
   distanceMeters: number
-  source: 'osrm' | 'manual'
+  source: 'valhalla' | 'manual'
   warning?: string
 }
 
