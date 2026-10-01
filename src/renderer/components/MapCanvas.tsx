@@ -5,20 +5,43 @@ import type { GeoPoint } from '../../shared/types'
 
 interface Props {
   routePoints: GeoPoint[]
+  waypointPoints: GeoPoint[]
   cursor?: GeoPoint
   mode: 'teleport' | 'route'
   onMapClick(point: GeoPoint): void
+  onWaypointChange(index: number, point: GeoPoint): void
+  onWaypointRemove(index: number): void
+  onWaypointSelect(index: number): void
+  activeWaypoint: number | null
   focusPoint?: GeoPoint
 }
 
 const emptyLine = { type: 'FeatureCollection', features: [] } as const
 
-export default function MapCanvas({ routePoints, cursor, mode, onMapClick, focusPoint }: Props) {
+export default function MapCanvas({
+  routePoints,
+  waypointPoints,
+  cursor,
+  mode,
+  onMapClick,
+  onWaypointChange,
+  onWaypointRemove,
+  onWaypointSelect,
+  activeWaypoint,
+  focusPoint
+}: Props) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
+  const waypointMarkersRef = useRef<maplibregl.Marker[]>([])
   const clickRef = useRef(onMapClick)
+  const changeRef = useRef(onWaypointChange)
+  const removeRef = useRef(onWaypointRemove)
+  const selectRef = useRef(onWaypointSelect)
   clickRef.current = onMapClick
+  changeRef.current = onWaypointChange
+  removeRef.current = onWaypointRemove
+  selectRef.current = onWaypointSelect
 
   useEffect(() => {
     if (!container.current || mapRef.current) return
@@ -51,33 +74,65 @@ export default function MapCanvas({ routePoints, cursor, mode, onMapClick, focus
         source: 'route',
         paint: { 'line-color': '#6ee7ff', 'line-width': 5, 'line-opacity': 0.9 }
       })
-      map.addSource('waypoints', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({
-        id: 'waypoints',
-        type: 'circle',
-        source: 'waypoints',
-        paint: { 'circle-radius': 6, 'circle-color': '#111827', 'circle-stroke-width': 2, 'circle-stroke-color': '#f8fafc' }
-      })
     })
     mapRef.current = map
-    return () => { map.remove(); mapRef.current = null }
+    return () => {
+      waypointMarkersRef.current.forEach((marker) => marker.remove())
+      waypointMarkersRef.current = []
+      map.remove()
+      mapRef.current = null
+    }
   }, [])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map?.isStyleLoaded()) return
     const line = map.getSource('route') as GeoJSONSource | undefined
-    const points = map.getSource('waypoints') as GeoJSONSource | undefined
     line?.setData(routePoints.length > 1 ? {
       type: 'Feature',
       properties: {},
       geometry: { type: 'LineString', coordinates: routePoints.map((p) => [p.lng, p.lat]) }
     } : emptyLine)
-    points?.setData({
-      type: 'FeatureCollection',
-      features: routePoints.map((p, i) => ({ type: 'Feature', properties: { index: i }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] } }))
-    })
   }, [routePoints])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    waypointMarkersRef.current.forEach((marker) => marker.remove())
+    waypointMarkersRef.current = waypointPoints.map((point, index) => {
+      const el = document.createElement('button')
+      el.type = 'button'
+      el.className = `waypoint-marker${activeWaypoint === index ? ' active' : ''}`
+      el.textContent = String(index + 1)
+      el.title = 'Drag to move · double-click to remove'
+      el.addEventListener('click', (event) => {
+        event.stopPropagation()
+        selectRef.current(index)
+      })
+      el.addEventListener('dblclick', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        removeRef.current(index)
+      })
+
+      const marker = new maplibregl.Marker({ element: el, draggable: mode === 'route' })
+        .setLngLat([point.lng, point.lat])
+        .addTo(map)
+
+      marker.on('dragstart', () => selectRef.current(index))
+      marker.on('dragend', () => {
+        const next = marker.getLngLat()
+        changeRef.current(index, { lat: next.lat, lng: next.lng })
+      })
+      return marker
+    })
+
+    return () => {
+      waypointMarkersRef.current.forEach((marker) => marker.remove())
+      waypointMarkersRef.current = []
+    }
+  }, [waypointPoints, activeWaypoint, mode])
 
   useEffect(() => {
     const map = mapRef.current
