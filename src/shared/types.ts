@@ -38,13 +38,6 @@ export interface LocationResult {
   message?: string
 }
 
-export interface HostLocationResult {
-  ok: boolean
-  point?: GeoPoint
-  accuracy?: 'precise' | 'approximate'
-  label?: string
-  message?: string
-}
 
 export interface SearchResult {
   displayName: string
@@ -72,7 +65,7 @@ export interface AppBridge {
   clearLocation(deviceId: string, platform: Platform): Promise<LocationResult>
   searchPlaces(query: string): Promise<SearchResult[]>
   buildRoute(request: RouteRequest): Promise<RouteResult>
-  getApproximateLocation(): Promise<HostLocationResult>
+  openLocationSettings(): Promise<boolean>
   getAppInfo(): Promise<{ version: string; platform: string }>
 }
 
