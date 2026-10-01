@@ -28,6 +28,7 @@ export default function App() {
   const [customSpeed, setCustomSpeed] = useState(12)
   const [routePoints, setRoutePoints] = useState<GeoPoint[]>(() => storage.get('route', []))
   const [plannedPoints, setPlannedPoints] = useState<GeoPoint[]>([])
+  const [activeWaypoint, setActiveWaypoint] = useState<number | null>(null)
   const [cursor, setCursor] = useState<GeoPoint | undefined>()
   const [focusPoint, setFocusPoint] = useState<GeoPoint | undefined>()
   const [status, setStatus] = useState('Ready')
@@ -82,7 +83,10 @@ export default function App() {
       await inject(point)
     } else {
       setPlannedPoints([])
-      setRoutePoints((points) => [...points, point])
+      setRoutePoints((points) => {
+        setActiveWaypoint(points.length)
+        return [...points, point]
+      })
     }
   }
 
@@ -143,12 +147,30 @@ export default function App() {
   }
 
   function clearRoute() {
-    stop(); setRoutePoints([]); setPlannedPoints([]); setProgress(0); setStatus('Route cleared.')
+    stop(); setRoutePoints([]); setPlannedPoints([]); setActiveWaypoint(null); setProgress(0); setStatus('Route cleared.')
+  }
+
+  function updateWaypoint(index: number, point: GeoPoint) {
+    setPlannedPoints([])
+    setRoutePoints((points) => points.map((item, i) => i === index ? point : item))
+    setActiveWaypoint(index)
+    setStatus(`Waypoint ${index + 1} moved.`)
+  }
+
+  function removeWaypoint(index: number) {
+    setPlannedPoints([])
+    setRoutePoints((points) => points.filter((_, i) => i !== index))
+    setActiveWaypoint((current) => current === null ? null : current === index ? null : current > index ? current - 1 : current)
+    setStatus(`Waypoint ${index + 1} removed.`)
   }
 
   function undoPoint() {
     setPlannedPoints([])
-    setRoutePoints((points) => points.slice(0, -1))
+    setRoutePoints((points) => {
+      const next = points.slice(0, -1)
+      setActiveWaypoint(next.length ? next.length - 1 : null)
+      return next
+    })
   }
 
   function exportRoute() {
@@ -175,7 +197,7 @@ export default function App() {
         if (xml.querySelector('parsererror')) throw new Error('Invalid GPX XML')
         const points = [...xml.querySelectorAll('trkpt, rtept, wpt')].map((node) => ({ lat: Number(node.getAttribute('lat')), lng: Number(node.getAttribute('lon')) })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
         if (!points.length) throw new Error('No GPX points found')
-        setRoutePoints(points); setPlannedPoints([]); setFocusPoint(points[0]); setStatus(`Imported ${points.length} GPX points.`)
+        setRoutePoints(points); setPlannedPoints([]); setActiveWaypoint(0); setFocusPoint(points[0]); setStatus(`Imported ${points.length} GPX points.`)
       } catch (error) { setStatus(`GPX import failed: ${error instanceof Error ? error.message : String(error)}`) }
     }
     reader.readAsText(file)
@@ -187,7 +209,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(String(reader.result)) as { points?: GeoPoint[]; mode?: TravelMode }
         if (!Array.isArray(parsed.points) || parsed.points.length < 1) throw new Error('No route points found')
-        setRoutePoints(parsed.points); setPlannedPoints([])
+        setRoutePoints(parsed.points); setPlannedPoints([]); setActiveWaypoint(0)
         if (parsed.mode) setTravelMode(parsed.mode)
         setFocusPoint(parsed.points[0]); setStatus(`Imported ${parsed.points.length} route points.`)
       } catch (error) { setStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`) }
@@ -241,7 +263,7 @@ export default function App() {
         <section>
           <h3>Route</h3>
           <div className="route-stats"><div><span>Distance</span><b>{formatDistance(distance)}</b></div><div><span>ETA</span><b>{formatDuration(duration)}</b></div><div><span>Speed</span><b>{speedKmh} km/h</b></div></div>
-          <div className="button-row"><button disabled={routePoints.length < 2} onClick={prepareRoute}>Build</button><button disabled={!routePoints.length} onClick={undoPoint}>Undo</button><button disabled={routePoints.length < 2} onClick={() => { setPlannedPoints([]); setRoutePoints((p) => [...p].reverse()); setStatus('Route reversed.') }}>Reverse</button><button disabled={!routePoints.length} onClick={clearRoute}>Clear</button></div>
+          <div className="button-row"><button disabled={routePoints.length < 2} onClick={prepareRoute}>Build</button><button disabled={!routePoints.length} onClick={undoPoint}>Undo</button><button disabled={routePoints.length < 2} onClick={() => { setPlannedPoints([]); setRoutePoints((p) => { const next = [...p].reverse(); setActiveWaypoint((current) => current === null ? null : next.length - 1 - current); return next }); setStatus('Route reversed.') }}>Reverse</button><button disabled={!routePoints.length} onClick={clearRoute}>Clear</button></div>
           <div className="progress"><i style={{ width: `${progress * 100}%` }}/></div>
           <div className="playback-row">
             <button className="primary" disabled={activeRoute.length < 2 || playback !== 'idle'} onClick={play}>▶ Play</button>
@@ -262,10 +284,10 @@ export default function App() {
       <main className="workspace">
         <div className="search-panel">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search city, address or place…" />
-          {searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.point.lat}-${result.point.lng}`} onClick={() => { setSearch(''); setSearchResults([]); setFocusPoint(result.point); if (interaction === 'teleport') inject(result.point); else setRoutePoints((p) => [...p, result.point]) }}><strong>{result.displayName.split(',')[0]}</strong><span>{result.displayName}</span></button>)}</div>}
+          {searchResults.length > 0 && <div className="search-results">{searchResults.map((result) => <button key={`${result.point.lat}-${result.point.lng}`} onClick={() => { setSearch(''); setSearchResults([]); setFocusPoint(result.point); if (interaction === 'teleport') inject(result.point); else setRoutePoints((p) => { setActiveWaypoint(p.length); return [...p, result.point] }) }}><strong>{result.displayName.split(',')[0]}</strong><span>{result.displayName}</span></button>)}</div>}
         </div>
-        <MapCanvas routePoints={activeRoute} cursor={cursor} mode={interaction} onMapClick={handleMapClick} focusPoint={focusPoint}/>
-        <div className="map-help"><b>{interaction === 'teleport' ? 'Teleport mode' : 'Route mode'}</b><span>{interaction === 'teleport' ? 'Click map → set simulator location' : `${routePoints.length} waypoint${routePoints.length === 1 ? '' : 's'} · Build route when ready`}</span></div>
+        <MapCanvas routePoints={activeRoute} waypointPoints={routePoints} cursor={cursor} mode={interaction} onMapClick={handleMapClick} onWaypointChange={updateWaypoint} onWaypointRemove={removeWaypoint} onWaypointSelect={setActiveWaypoint} activeWaypoint={activeWaypoint} focusPoint={focusPoint}/>
+        <div className="map-help"><b>{interaction === 'teleport' ? 'Teleport mode' : 'Route mode'}</b><span>{interaction === 'teleport' ? 'Click map → set simulator location' : `${routePoints.length} waypoint${routePoints.length === 1 ? '' : 's'} · drag pins to edit · double-click to remove`}</span></div>
       </main>
 
       <aside className="right-panel">
