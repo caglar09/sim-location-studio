@@ -128,7 +128,7 @@ h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacin
   }
 
   .sidebar-backdrop {
-    display: block;
+    display: none;
     position: fixed;
     inset: 58px 0 0;
     z-index: 35;
@@ -143,6 +143,7 @@ h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacin
   }
 
   .sidebar-backdrop.visible {
+    display: block;
     opacity: 1;
     pointer-events: auto;
   }
@@ -354,3 +355,12 @@ h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacin
     width: auto;
   }
 }
+
+/* Explicit stacking keeps the map interactive unless a visible mobile drawer is open. */
+.workspace { z-index: 1; overflow: hidden; }
+.map { z-index: 1; }
+.search-panel,
+.locate-button,
+.location-permission-card,
+.map-help { pointer-events: auto; }
+.sidebar-backdrop:not(.visible) { display: none !important; pointer-events: none !important; }
