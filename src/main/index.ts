@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, session, shell } from 'electron'
 import { join } from 'node:path'
 import os from 'node:os'
 import { diagnostics, listDevices, setLocation, clearLocation } from './providers'
@@ -94,11 +94,12 @@ async function buildRoute(request: RouteRequest): Promise<RouteResult> {
   }
 
   try {
-    const response = await fetch('https://valhalla.openstreetmap.de/route', {
+    const response = await fetch('https://valhalla1.openstreetmap.de/route', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'SimLocationStudio/0.1 (+https://github.com/caglar09/sim-location-studio)'
+        'User-Agent': 'SimLocationStudio/0.1 (+https://github.com/caglar09/sim-location-studio)',
+        'X-Client-Id': 'sim-location-studio'
       },
       body: JSON.stringify({
         locations: request.points.map((point) => ({
@@ -112,7 +113,16 @@ async function buildRoute(request: RouteRequest): Promise<RouteResult> {
       })
     })
 
-    if (!response.ok) throw new Error(`Valhalla returned HTTP ${response.status}`)
+    if (!response.ok) {
+      let detail = ''
+      try {
+        const errorPayload = await response.json() as { error?: string; error_code?: number }
+        detail = errorPayload.error || (errorPayload.error_code ? `error ${errorPayload.error_code}` : '')
+      } catch {
+        // Ignore non-JSON error bodies.
+      }
+      throw new Error(detail || `routing service returned HTTP ${response.status}`)
+    }
 
     const payload = await response.json() as {
       trip?: {
@@ -169,6 +179,11 @@ async function searchPlaces(query: string): Promise<SearchResult[]> {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin' && app.dock) {
+    const iconPath = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(process.cwd(), 'build', 'icon.png')
+    const dockIcon = nativeImage.createFromPath(iconPath)
+    if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon)
+  }
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => permission === 'geolocation')
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'geolocation')
