@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DeviceInfo, DiagnosticsSnapshot, GeoPoint, SearchResult, TravelMode } from '../shared/types'
 import MapCanvas from './components/MapCanvas'
+import appIcon from './assets/app-icon.svg'
 import { formatDistance, formatDuration, interpolateRoute, routeDistance } from './lib/geo'
 
 type InteractionMode = 'teleport' | 'route'
@@ -310,7 +311,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><div className="brand-mark">S</div><div><strong>Sim Location Studio</strong><span>Location simulation for app developers</span></div></div>
+        <div className="brand"><div className="brand-mark"><img src={appIcon} alt="" /></div><div><strong>Sim Location Studio</strong><span>Location simulation for app developers</span></div></div>
         <div className="top-actions">
           <button className="controls-toggle" onClick={() => setControlsOpen((open) => !open)} aria-expanded={controlsOpen}>☰ Controls</button>
           <button className="refresh-button" onClick={refresh}>Refresh devices</button>
