@@ -52,14 +52,14 @@
       "extendInfo": {
         "NSLocationUsageDescription": "Sim Location Studio uses your Mac location only to center the map near you."
       },
-      "icon": "build/icon.icns"
+      "icon": "build/icon.png"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.png"
     },
     "linux": {
       "category": "Development",
