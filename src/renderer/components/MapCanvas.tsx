@@ -170,7 +170,7 @@ export default function MapCanvas({
 
   useEffect(() => {
     if (!focusPoint || !mapRef.current) return
-    mapRef.current.flyTo({ center: [focusPoint.lng, focusPoint.lat], zoom: Math.max(mapRef.current.getZoom(), 14), duration: 700 })
+    mapRef.current.flyTo({ center: [focusPoint.lng, focusPoint.lat], duration: 500 })
   }, [focusPoint])
 
   return <div className={`map ${mode === 'route' ? 'route-mode' : 'teleport-mode'}`} ref={container} />
