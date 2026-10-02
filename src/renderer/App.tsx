@@ -319,7 +319,7 @@ export default function App() {
         </div>
       </header>
 
-      <button className={`sidebar-backdrop${controlsOpen ? ' visible' : ''}`} aria-label="Close controls" onClick={() => setControlsOpen(false)} />
+{controlsOpen && <button className="sidebar-backdrop visible" aria-label="Close controls" onClick={() => setControlsOpen(false)} />}
       <aside className={`sidebar${controlsOpen ? ' open' : ''}`}>
         <div className="sidebar-mobile-head">
           <strong>Controls</strong>
