@@ -5,37 +5,8 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  hydrate-icon:
-    runs-on: ubuntu-latest
-    outputs:
-      hydrated: ${{ steps.icon.outputs.hydrated }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Hydrate app icon
-        id: icon
-        shell: bash
-        run: |
-          echo "hydrated=false" >> "$GITHUB_OUTPUT"
-          if [ ! -f .icon-payload/READY ]; then
-            exit 0
-          fi
-          mkdir -p build
-          cat .icon-payload/part-* | base64 --decode > build/icon.png
-          rm -rf .icon-payload
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build/icon.png .icon-payload
-          git commit -m "feat: add Sim Location Studio app icon"
-          git push
-          echo "hydrated=true" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: hydrate-icon
-    if: needs.hydrate-icon.outputs.hydrated != 'true'
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
