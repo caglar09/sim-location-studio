@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeImage, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { join } from 'node:path'
 import os from 'node:os'
 import { diagnostics, listDevices, setLocation, clearLocation } from './providers'
@@ -179,11 +179,6 @@ async function searchPlaces(query: string): Promise<SearchResult[]> {
 }
 
 app.whenReady().then(() => {
-  if (process.platform === 'darwin' && app.dock) {
-    const iconPath = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(process.cwd(), 'build', 'icon.png')
-    const dockIcon = nativeImage.createFromPath(iconPath)
-    if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon)
-  }
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => permission === 'geolocation')
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'geolocation')
