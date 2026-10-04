@@ -119,3 +119,33 @@ This project is designed for application development, QA and automated testing. 
 ## License
 
 MIT
+
+
+## Physical devices
+
+Sim Location Studio can also target real devices.
+
+### iPhone / iPad
+
+Physical iOS support uses [pymobiledevice3](https://github.com/doronz88/pymobiledevice3).
+
+```bash
+python3 -m pip install -U pymobiledevice3
+pymobiledevice3 usbmux list
+```
+
+Connect the device, trust the computer, and enable Developer Mode on iOS 17+. Sim Location Studio keeps one persistent DVT location session per connected physical device, so normal teleport and route playback can reuse the same Walk/Bike/Drive playback engine.
+
+### Physical Android
+
+The repository contains `android-companion/`, a small mock-location companion app. GitHub Actions publishes the debug APK as the `sim-location-companion-android` artifact.
+
+1. Enable USB debugging.
+2. Install the companion APK.
+3. Open Android Developer options.
+4. Select **Sim Location Companion** under **Select mock location app**.
+5. Refresh devices in Sim Location Studio.
+
+Once configured, the physical Android device becomes selectable just like an emulator.
+
+See [docs/PHYSICAL_DEVICES.md](docs/PHYSICAL_DEVICES.md) for setup and troubleshooting.
