@@ -1,5 +1,7 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { promisify } from 'node:util'
+import { join } from 'node:path'
+import { app } from 'electron'
 import type { DeviceInfo, GeoPoint, LocationResult, ToolStatus } from '../shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -24,20 +26,41 @@ async function commandVersion(command: string, args: string[], label: ToolStatus
   }
 }
 
-async function hasPymobiledevice3() {
-  try {
-    await run('pymobiledevice3', ['--version'], 5000)
-    return true
-  } catch {
-    return false
+let pythonPromise: Promise<string | null> | null = null
+
+async function findPymobiledevicePython(): Promise<string | null> {
+  if (!pythonPromise) {
+    pythonPromise = (async () => {
+      const candidates = process.platform === 'win32'
+        ? ['python', 'py']
+        : ['/opt/homebrew/bin/python3', '/usr/local/bin/python3', 'python3', 'python']
+
+      for (const candidate of candidates) {
+        try {
+          const args = candidate === 'py'
+            ? ['-3', '-c', 'import pymobiledevice3; print("ok")']
+            : ['-c', 'import pymobiledevice3; print("ok")']
+          await run(candidate, args, 5000)
+          return candidate
+        } catch {
+          // Try the next Python installation.
+        }
+      }
+      return null
+    })()
   }
+  return pythonPromise
+}
+
+function pythonModuleArgs(python: string, args: string[]) {
+  return python === 'py' ? ['-3', '-m', 'pymobiledevice3', ...args] : ['-m', 'pymobiledevice3', ...args]
 }
 
 export async function diagnostics(): Promise<ToolStatus[]> {
-  const [xcrun, adb, pymobiledevice3] = await Promise.all([
+  const [xcrun, adb, python] = await Promise.all([
     commandVersion('xcrun', ['--version'], 'xcrun'),
     commandVersion('adb', ['version'], 'adb'),
-    commandVersion('pymobiledevice3', ['--version'], 'pymobiledevice3')
+    findPymobiledevicePython()
   ])
 
   let simctl: ToolStatus
@@ -48,13 +71,33 @@ export async function diagnostics(): Promise<ToolStatus[]> {
     simctl = { id: 'simctl', label: 'simctl', available: false, detail: error instanceof Error ? error.message : String(error) }
   }
 
+  let pymobiledevice3: ToolStatus
+  if (!python) {
+    pymobiledevice3 = {
+      id: 'pymobiledevice3',
+      label: 'pymobiledevice3',
+      available: false,
+      detail: 'Install with: python3 -m pip install -U pymobiledevice3'
+    }
+  } else {
+    try {
+      const versionArgs = python === 'py'
+        ? ['-3', '-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
+        : ['-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
+      const { stdout } = await run(python, versionArgs, 5000)
+      pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: stdout.trim() }
+    } catch {
+      pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: 'Available' }
+    }
+  }
+
   return [xcrun, simctl, adb, pymobiledevice3]
 }
 
 export async function listIosSimulators(): Promise<DeviceInfo[]> {
   try {
     const { stdout } = await run('xcrun', ['simctl', 'list', 'devices', 'available', '--json'])
-    const parsed = JSON.parse(stdout) as { devices?: Record<string, Array<{ udid: string; name: string; state: string; isAvailable?: boolean }>> }
+    const parsed = JSON.parse(stdout) as { devices?: Record<string, Array<{ udid: string; name: string; state: string }>> }
     const devices: DeviceInfo[] = []
 
     for (const [runtime, items] of Object.entries(parsed.devices ?? {})) {
@@ -91,34 +134,40 @@ type PymobileDevice = {
   DeviceClass?: string
 }
 
+const iosVersions = new Map<string, string>()
+
 export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
-  if (!(await hasPymobiledevice3())) return []
+  const python = await findPymobiledevicePython()
+  if (!python) return []
 
   try {
-    const { stdout } = await run('pymobiledevice3', ['usbmux', 'list'], 8000)
+    const { stdout } = await run(python, pythonModuleArgs(python, ['usbmux', 'list']), 8000)
     const parsed = JSON.parse(stdout) as PymobileDevice[]
     const byUdid = new Map<string, PymobileDevice>()
 
     for (const item of parsed) {
       const udid = item.Identifier || item.UniqueDeviceID
-      if (!udid || item.DeviceClass && item.DeviceClass !== 'iPhone' && item.DeviceClass !== 'iPad') continue
+      if (!udid || (item.DeviceClass && item.DeviceClass !== 'iPhone' && item.DeviceClass !== 'iPad')) continue
       const existing = byUdid.get(udid)
       if (!existing || item.ConnectionType === 'USB') byUdid.set(udid, item)
     }
 
-    return [...byUdid.entries()].map(([udid, item]) => ({
-      id: `${IOS_PHYSICAL_PREFIX}${udid}`,
-      name: item.DeviceName || item.ProductType || 'iOS Device',
-      platform: 'ios' as const,
-      kind: 'physical' as const,
-      state: 'online' as const,
-      osVersion: item.ProductVersion,
-      model: item.ProductType,
-      supported: true,
-      provider: 'ios-pymobiledevice3' as const,
-      connection: item.ConnectionType === 'Network' ? 'network' as const : 'usb' as const,
-      detail: `Physical iOS device · ${item.ConnectionType || 'USB'} · Developer Mode required for iOS 17+`
-    }))
+    return [...byUdid.entries()].map(([udid, item]) => {
+      if (item.ProductVersion) iosVersions.set(udid, item.ProductVersion)
+      return {
+        id: `${IOS_PHYSICAL_PREFIX}${udid}`,
+        name: item.DeviceName || item.ProductType || 'iOS Device',
+        platform: 'ios' as const,
+        kind: 'physical' as const,
+        state: 'online' as const,
+        osVersion: item.ProductVersion,
+        model: item.ProductType,
+        supported: true,
+        provider: 'ios-pymobiledevice3' as const,
+        connection: item.ConnectionType === 'Network' ? 'network' as const : 'usb' as const,
+        detail: `Physical iOS device · ${item.ConnectionType || 'USB'} · Developer Mode required for iOS 17+`
+      }
+    })
   } catch {
     return []
   }
@@ -208,43 +257,173 @@ function parseIosMajor(version?: string) {
   return Number.isFinite(major) ? major : 17
 }
 
-async function setPhysicalIosLocation(deviceId: string, point: GeoPoint, version?: string): Promise<LocationResult> {
-  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
-  const env = { PYMOBILEDEVICE3_UDID: udid }
-  const major = parseIosMajor(version)
-  const args = major >= 17
-    ? ['developer', 'dvt', 'simulate-location', 'set', '--', String(point.lat), String(point.lng)]
-    : ['developer', 'simulate-location', 'set', '--', String(point.lat), String(point.lng)]
+type PendingCommand = {
+  resolve: (result: LocationResult) => void
+  timer: NodeJS.Timeout
+}
 
-  try {
-    // Modern pymobiledevice3 may keep the DVT command alive after applying a
-    // location. A short timeout still surfaces setup failures; route-grade
-    // persistent sessions are the next provider layer.
-    await run('pymobiledevice3', args, 12000, env)
-    return { ok: true }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (/timed out|ETIMEDOUT/i.test(message)) {
-      return {
-        ok: false,
-        message: 'The iOS DVT location command did not complete. Ensure the phone is unlocked, trusted, Developer Mode is enabled, and pymobiledevice3 is up to date.'
-      }
+type IosBridgeSession = {
+  child: ChildProcessWithoutNullStreams
+  ready: Promise<void>
+  send: (action: 'set' | 'clear', point?: GeoPoint) => Promise<LocationResult>
+  dispose: () => void
+}
+
+const iosBridgeSessions = new Map<string, IosBridgeSession>()
+
+function bridgeScriptPath() {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'scripts', 'ios_device_bridge.py')
+    : join(process.cwd(), 'scripts', 'ios_device_bridge.py')
+}
+
+async function createIosBridgeSession(udid: string, version?: string): Promise<IosBridgeSession> {
+  const python = await findPymobiledevicePython()
+  if (!python) throw new Error('pymobiledevice3 is not installed. Run: python3 -m pip install -U pymobiledevice3')
+
+  const pythonPrefix = python === 'py' ? ['-3'] : []
+  const child = spawn(python, [
+    ...pythonPrefix,
+    bridgeScriptPath(),
+    '--udid', udid,
+    '--ios-major', String(parseIosMajor(version || iosVersions.get(udid)))
+  ], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env
+  }) as ChildProcessWithoutNullStreams
+
+  let sequence = 0
+  let stdoutBuffer = ''
+  let stderrBuffer = ''
+  let readyResolve!: () => void
+  let readyReject!: (error: Error) => void
+  const pending = new Map<number, PendingCommand>()
+
+  const ready = new Promise<void>((resolve, reject) => {
+    readyResolve = resolve
+    readyReject = reject
+  })
+
+  const rejectAll = (message: string) => {
+    for (const [, item] of pending) {
+      clearTimeout(item.timer)
+      item.resolve({ ok: false, message })
     }
-    return { ok: false, message }
+    pending.clear()
+  }
+
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+
+  child.stdout.on('data', (chunk: string) => {
+    stdoutBuffer += chunk
+    let newline = stdoutBuffer.indexOf('\n')
+    while (newline >= 0) {
+      const line = stdoutBuffer.slice(0, newline).trim()
+      stdoutBuffer = stdoutBuffer.slice(newline + 1)
+      if (line) {
+        try {
+          const message = JSON.parse(line) as { type?: string; id?: number; ok?: boolean; message?: string }
+          if (message.type === 'ready') readyResolve()
+          if (message.type === 'fatal') readyReject(new Error(message.message || 'iOS bridge failed'))
+          if (message.type === 'result' && typeof message.id === 'number') {
+            const item = pending.get(message.id)
+            if (item) {
+              clearTimeout(item.timer)
+              pending.delete(message.id)
+              item.resolve({ ok: Boolean(message.ok), message: message.message })
+            }
+          }
+        } catch {
+          // Ignore non-protocol stdout.
+        }
+      }
+      newline = stdoutBuffer.indexOf('\n')
+    }
+  })
+
+  child.stderr.on('data', (chunk: string) => {
+    stderrBuffer = (stderrBuffer + chunk).slice(-8000)
+  })
+
+  child.once('error', (error) => {
+    readyReject(error)
+    rejectAll(error.message)
+    iosBridgeSessions.delete(udid)
+  })
+
+  child.once('exit', (code) => {
+    const message = stderrBuffer.trim() || `iOS bridge exited with code ${code ?? 'unknown'}`
+    readyReject(new Error(message))
+    rejectAll(message)
+    iosBridgeSessions.delete(udid)
+  })
+
+  const readyTimer = setTimeout(() => {
+    readyReject(new Error('Timed out connecting to the physical iOS device. Verify Trust, Developer Mode and pymobiledevice3.'))
+    child.kill()
+  }, 25000)
+  ready.finally(() => clearTimeout(readyTimer)).catch(() => undefined)
+
+  const session: IosBridgeSession = {
+    child,
+    ready,
+    send: async (action, point) => {
+      try {
+        await ready
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) }
+      }
+
+      const id = ++sequence
+      return new Promise<LocationResult>((resolve) => {
+        const timer = setTimeout(() => {
+          pending.delete(id)
+          resolve({ ok: false, message: 'Physical iOS location command timed out.' })
+        }, 10000)
+
+        pending.set(id, { resolve, timer })
+        child.stdin.write(JSON.stringify({
+          id,
+          action,
+          ...(point ? { lat: point.lat, lng: point.lng } : {})
+        }) + '\n')
+      })
+    },
+    dispose: () => {
+      rejectAll('iOS bridge closed.')
+      child.kill()
+    }
+  }
+
+  return session
+}
+
+async function getIosBridgeSession(deviceId: string): Promise<IosBridgeSession> {
+  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
+  const existing = iosBridgeSessions.get(udid)
+  if (existing && !existing.child.killed) return existing
+  const session = await createIosBridgeSession(udid, iosVersions.get(udid))
+  iosBridgeSessions.set(udid, session)
+  return session
+}
+
+export function disposePhysicalDeviceSessions() {
+  for (const [, session] of iosBridgeSessions) session.dispose()
+  iosBridgeSessions.clear()
+}
+
+async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promise<LocationResult> {
+  try {
+    return await (await getIosBridgeSession(deviceId)).send('set', point)
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) }
   }
 }
 
-async function clearPhysicalIosLocation(deviceId: string, version?: string): Promise<LocationResult> {
-  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
-  const env = { PYMOBILEDEVICE3_UDID: udid }
-  const major = parseIosMajor(version)
-  const args = major >= 17
-    ? ['developer', 'dvt', 'simulate-location', 'clear']
-    : ['developer', 'simulate-location', 'clear']
-
+async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResult> {
   try {
-    await run('pymobiledevice3', args, 12000, env)
-    return { ok: true, message: 'Physical iOS location simulation cleared.' }
+    return await (await getIosBridgeSession(deviceId)).send('clear')
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) }
   }
@@ -282,10 +461,10 @@ async function clearPhysicalAndroidLocation(deviceId: string): Promise<LocationR
   }
 }
 
-export async function setLocation(platform: 'ios' | 'android', deviceId: string, point: GeoPoint, osVersion?: string): Promise<LocationResult> {
+export async function setLocation(platform: 'ios' | 'android', deviceId: string, point: GeoPoint): Promise<LocationResult> {
   try {
     if (platform === 'ios') {
-      if (deviceId.startsWith(IOS_PHYSICAL_PREFIX)) return setPhysicalIosLocation(deviceId, point, osVersion)
+      if (deviceId.startsWith(IOS_PHYSICAL_PREFIX)) return setPhysicalIosLocation(deviceId, point)
       await run('xcrun', ['simctl', 'location', deviceId, 'set', `${point.lat},${point.lng}`])
       return { ok: true }
     }
@@ -299,10 +478,10 @@ export async function setLocation(platform: 'ios' | 'android', deviceId: string,
   }
 }
 
-export async function clearLocation(platform: 'ios' | 'android', deviceId: string, osVersion?: string): Promise<LocationResult> {
+export async function clearLocation(platform: 'ios' | 'android', deviceId: string): Promise<LocationResult> {
   try {
     if (platform === 'ios') {
-      if (deviceId.startsWith(IOS_PHYSICAL_PREFIX)) return clearPhysicalIosLocation(deviceId, osVersion)
+      if (deviceId.startsWith(IOS_PHYSICAL_PREFIX)) return clearPhysicalIosLocation(deviceId)
       await run('xcrun', ['simctl', 'location', deviceId, 'clear'])
       return { ok: true }
     }
