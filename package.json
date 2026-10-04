@@ -71,6 +71,12 @@
     },
     "directories": {
       "buildResources": "build"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "scripts/ios_device_bridge.py",
+        "to": "scripts/ios_device_bridge.py"
+      }
+    ]
   }
 }
