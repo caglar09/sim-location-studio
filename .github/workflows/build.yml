@@ -17,6 +17,13 @@ jobs:
         with:
           node-version: 24
       - run: npm install
+      - uses: actions/setup-python@v5
+        if: runner.os == 'macOS'
+        with:
+          python-version: '3.12'
+      - name: Build bundled physical iOS bridge
+        if: runner.os == 'macOS' && github.event_name == 'push'
+        run: npm run build:ios-bridge
       - run: npm run typecheck
       - run: npm run build
       - name: Package desktop app
