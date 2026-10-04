@@ -15,8 +15,8 @@ class MockLocationReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             ACTION_SET -> {
-                val lat = intent.getFloatExtra("lat", Float.NaN).toDouble()
-                val lng = intent.getFloatExtra("lng", Float.NaN).toDouble()
+                val lat = intent.getStringExtra("lat")?.toDoubleOrNull() ?: Double.NaN
+                val lng = intent.getStringExtra("lng")?.toDoubleOrNull() ?: Double.NaN
                 if (!lat.isFinite() || !lng.isFinite()) return
 
                 val providers = mutableListOf(
