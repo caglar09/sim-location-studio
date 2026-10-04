@@ -15,9 +15,10 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build:ios-bridge && npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux"
+    "dist:linux": "npm run build && electron-builder --linux",
+    "build:ios-bridge": "bash scripts/build_ios_bridge.sh"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.2.0",
@@ -52,7 +53,17 @@
       "extendInfo": {
         "NSLocationUsageDescription": "Sim Location Studio uses your Mac location only to center the map near you."
       },
-      "icon": "build/icon.svg"
+      "icon": "build/icon.svg",
+      "extraResources": [
+        {
+          "from": "build/bin/ios-device-bridge",
+          "to": "bin/ios-device-bridge"
+        },
+        {
+          "from": "THIRD_PARTY_NOTICES.md",
+          "to": "THIRD_PARTY_NOTICES.md"
+        }
+      ]
     },
     "win": {
       "target": [
@@ -71,12 +82,6 @@
     },
     "directories": {
       "buildResources": "build"
-    },
-    "extraResources": [
-      {
-        "from": "scripts/ios_device_bridge.py",
-        "to": "scripts/ios_device_bridge.py"
-      }
-    ]
+    }
   }
 }
