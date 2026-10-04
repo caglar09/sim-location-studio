@@ -436,8 +436,8 @@ async function setPhysicalAndroidLocation(deviceId: string, point: GeoPoint): Pr
       'shell', 'am', 'broadcast',
       '-a', 'dev.simlocation.companion.SET_LOCATION',
       '-p', ANDROID_COMPANION_PACKAGE,
-      '--ef', 'lat', String(point.lat),
-      '--ef', 'lng', String(point.lng)
+      '--es', 'lat', String(point.lat),
+      '--es', 'lng', String(point.lng)
     ], 6000)
 
     if (!/result=0|Broadcast completed/i.test(stdout)) throw new Error(stdout.trim() || 'Companion broadcast failed')
