@@ -329,9 +329,9 @@ export default function App() {
           <h3>Target device</h3>
           <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
             <option value="">Select a device…</option>
-            {devices.map((device) => <option key={device.id} value={device.id}>{device.platform === 'ios' ? '' : '◉'} {device.name} · {device.state}{device.supported ? '' : ' · unsupported'}</option>)}
+            {devices.map((device) => <option key={device.id} value={device.id}>{device.kind === 'physical' ? '📱' : device.platform === 'ios' ? '' : '◉'} {device.name} · {device.kind} · {device.state}{device.supported ? '' : ' · setup required'}</option>)}
           </select>
-          {selectedDevice && <div className="device-card"><strong>{selectedDevice.name}</strong><span>{selectedDevice.platform.toUpperCase()} · {selectedDevice.kind} · {selectedDevice.osVersion || selectedDevice.model || selectedDevice.state}</span>{selectedDevice.detail && <small>{selectedDevice.detail}</small>}</div>}
+          {selectedDevice && <div className="device-card"><strong>{selectedDevice.name}</strong><span>{selectedDevice.platform.toUpperCase()} · {selectedDevice.kind} · {selectedDevice.connection || 'local'} · {selectedDevice.osVersion || selectedDevice.model || selectedDevice.state}</span>{selectedDevice.provider && <small>Provider: {selectedDevice.provider}</small>}{selectedDevice.detail && <small>{selectedDevice.detail}</small>}</div>}
         </section>
 
         <section>
