@@ -3,7 +3,7 @@
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, copy_metadata
 
-ROOT = Path(SPEC).resolve().parent.parent
+ROOT = Path(SPECPATH).resolve().parent
 ENTRY = ROOT / "scripts" / "ios_device_bridge.py"
 
 datas, binaries, hiddenimports = collect_all("pymobiledevice3")
