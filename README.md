@@ -127,14 +127,11 @@ Sim Location Studio can also target real devices.
 
 ### iPhone / iPad
 
-Physical iOS support uses [pymobiledevice3](https://github.com/doronz88/pymobiledevice3).
-
-```bash
-python3 -m pip install -U pymobiledevice3
-pymobiledevice3 usbmux list
-```
+Release DMGs include a self-contained physical-iOS bridge. End users do **not** need to install Python, pip, Homebrew, or pymobiledevice3.
 
 Connect the device, trust the computer, and enable Developer Mode on iOS 17+. Sim Location Studio keeps one persistent DVT location session per connected physical device, so normal teleport and route playback can reuse the same Walk/Bike/Drive playback engine.
+
+Repository developers running `npm run dev` can install the Python dependency locally with `python3 -m pip install -U pymobiledevice3`. `npm run dist:mac` builds and embeds the standalone bridge automatically.
 
 ### Physical Android
 
