@@ -1,13 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_all, copy_metadata
+
+ROOT = Path(SPEC).resolve().parent.parent
+ENTRY = ROOT / "scripts" / "ios_device_bridge.py"
 
 datas, binaries, hiddenimports = collect_all("pymobiledevice3")
 datas += copy_metadata("pymobiledevice3")
 
 a = Analysis(
-    ["scripts/ios_device_bridge.py"],
-    pathex=[],
+    [str(ENTRY)],
+    pathex=[str(ROOT)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
