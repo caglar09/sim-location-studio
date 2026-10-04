@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { join } from 'node:path'
 import os from 'node:os'
-import { diagnostics, listDevices, setLocation, clearLocation } from './providers'
+import { diagnostics, listDevices, setLocation, clearLocation, disposePhysicalDeviceSessions } from './providers'
 import type { GeoPoint, RouteRequest, RouteResult, SearchResult } from '../shared/types'
 
 function createWindow() {
@@ -205,6 +205,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('before-quit', () => disposePhysicalDeviceSessions())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
