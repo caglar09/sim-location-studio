@@ -57,7 +57,7 @@ export async function diagnostics(): Promise<ToolStatus[]> {
   const [xcrun, adb, python] = await Promise.all([
     commandVersion('xcrun', ['--version'], 'xcrun'),
     commandVersion('adb', ['version'], 'adb'),
-    findPymobiledevicePython()
+    app.isPackaged ? Promise.resolve(null) : findPymobiledevicePython()
   ])
 
   let simctl: ToolStatus
