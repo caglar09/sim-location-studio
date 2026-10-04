@@ -19,6 +19,7 @@ WORK="$ROOT/.build/ios-bridge-work"
 rm -rf "$WORK"
 mkdir -p "$OUT"
 
+cd "$ROOT"
 "$VENV/bin/pyinstaller" \
   --clean \
   --noconfirm \
