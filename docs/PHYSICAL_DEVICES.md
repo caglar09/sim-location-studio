@@ -2,22 +2,30 @@
 
 ## iOS / iPadOS
 
-Requirements:
+Release DMGs are self-contained for physical iOS support. End users do not install Python or pymobiledevice3.
 
-- macOS is the primary supported host for physical iOS testing.
-- Python 3.9 or newer.
-- `pymobiledevice3`.
+Requirements for end users:
+
+- macOS.
 - The iPhone/iPad must trust the computer.
 - Developer Mode must be enabled for iOS 17+.
 
-Install:
+Refresh Sim Location Studio after connecting the device. It will appear as a **physical** iOS target using the `ios-pymobiledevice3` provider.
+
+For repository development only:
 
 ```bash
 python3 -m pip install -U pymobiledevice3
-pymobiledevice3 usbmux list
+npm run dev
 ```
 
-When a physical iOS device appears in `usbmux list`, refresh Sim Location Studio. It will appear as a **physical** iOS target using the `ios-pymobiledevice3` provider.
+For a distributable build:
+
+```bash
+npm run dist:mac
+```
+
+That command creates an isolated build environment, freezes the bridge together with Python and pymobiledevice3 using PyInstaller, and embeds `ios-device-bridge` under the app's Resources/bin directory.
 
 Sim Location Studio starts a persistent Python bridge for the selected device. On iOS 17+ the bridge uses a no-root RSD tunnel and DVT LocationSimulation. On older systems it uses the legacy simulate-location developer service.
 
@@ -25,11 +33,7 @@ The bridge stays open while coordinates are streamed, so Teleport and route play
 
 ### Troubleshooting
 
-If the device is not listed:
-
-```bash
-pymobiledevice3 usbmux list
-```
+If a device is not listed in a release build, reconnect it, unlock it, confirm Trust, then refresh devices. Developers can additionally check `pymobiledevice3 usbmux list` in source mode.
 
 If it is listed but location injection fails:
 
