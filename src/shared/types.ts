@@ -1,5 +1,6 @@
 export type Platform = 'ios' | 'android'
 export type DeviceKind = 'simulator' | 'emulator' | 'physical'
+export type LocationProviderId = 'ios-simctl' | 'ios-pymobiledevice3' | 'android-emulator' | 'android-companion'
 export type TravelMode = 'walk' | 'bike' | 'drive' | 'custom'
 
 export interface GeoPoint {
@@ -16,11 +17,13 @@ export interface DeviceInfo {
   osVersion?: string
   model?: string
   supported: boolean
+  provider?: LocationProviderId
+  connection?: 'usb' | 'network' | 'local'
   detail?: string
 }
 
 export interface ToolStatus {
-  id: 'xcrun' | 'simctl' | 'adb'
+  id: 'xcrun' | 'simctl' | 'adb' | 'pymobiledevice3' | 'android-companion'
   label: string
   available: boolean
   version?: string
