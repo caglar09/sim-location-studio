@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { promisify } from 'node:util'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { DeviceInfo, GeoPoint, LocationResult, ToolStatus } from '../shared/types'
@@ -52,10 +53,6 @@ async function findPymobiledevicePython(): Promise<string | null> {
   return pythonPromise
 }
 
-function pythonModuleArgs(python: string, args: string[]) {
-  return python === 'py' ? ['-3', '-m', 'pymobiledevice3', ...args] : ['-m', 'pymobiledevice3', ...args]
-}
-
 export async function diagnostics(): Promise<ToolStatus[]> {
   const [xcrun, adb, python] = await Promise.all([
     commandVersion('xcrun', ['--version'], 'xcrun'),
@@ -72,12 +69,17 @@ export async function diagnostics(): Promise<ToolStatus[]> {
   }
 
   let pymobiledevice3: ToolStatus
-  if (!python) {
+  if (app.isPackaged && process.platform === 'darwin') {
+    const bridge = await resolveIosBridgeCommand(['--list'])
+    pymobiledevice3 = bridge
+      ? { id: 'pymobiledevice3', label: 'iOS physical bridge', available: true, version: 'Bundled' }
+      : { id: 'pymobiledevice3', label: 'iOS physical bridge', available: false, detail: 'Bundled bridge missing from app resources.' }
+  } else if (!python) {
     pymobiledevice3 = {
       id: 'pymobiledevice3',
       label: 'pymobiledevice3',
       available: false,
-      detail: 'Install with: python3 -m pip install -U pymobiledevice3'
+      detail: 'Development only: python3 -m pip install -U pymobiledevice3'
     }
   } else {
     try {
@@ -134,14 +136,28 @@ type PymobileDevice = {
   DeviceClass?: string
 }
 
-const iosVersions = new Map<string, string>()
+async function resolveIosBridgeCommand(args: string[]): Promise<{ command: string; args: string[] } | null> {
+  if (app.isPackaged) {
+    if (process.platform !== 'darwin') return null
+    const executable = join(process.resourcesPath, 'bin', 'ios-device-bridge')
+    return existsSync(executable) ? { command: executable, args } : null
+  }
+
+  const python = await findPymobiledevicePython()
+  if (!python) return null
+  const prefix = python === 'py' ? ['-3'] : []
+  return {
+    command: python,
+    args: [...prefix, join(process.cwd(), 'scripts', 'ios_device_bridge.py'), ...args]
+  }
+}
 
 export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
-  const python = await findPymobiledevicePython()
-  if (!python) return []
+  const bridge = await resolveIosBridgeCommand(['--list'])
+  if (!bridge) return []
 
   try {
-    const { stdout } = await run(python, pythonModuleArgs(python, ['usbmux', 'list']), 8000)
+    const { stdout } = await run(bridge.command, bridge.args, 12000)
     const parsed = JSON.parse(stdout) as PymobileDevice[]
     const byUdid = new Map<string, PymobileDevice>()
 
@@ -153,7 +169,6 @@ export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
     }
 
     return [...byUdid.entries()].map(([udid, item]) => {
-      if (item.ProductVersion) iosVersions.set(udid, item.ProductVersion)
       return {
         id: `${IOS_PHYSICAL_PREFIX}${udid}`,
         name: item.DeviceName || item.ProductType || 'iOS Device',
@@ -252,11 +267,6 @@ export async function listDevices(): Promise<DeviceInfo[]> {
   return [...iosSimulators, ...iosPhysical, ...android]
 }
 
-function parseIosMajor(version?: string) {
-  const major = Number((version || '').split('.')[0])
-  return Number.isFinite(major) ? major : 17
-}
-
 type PendingCommand = {
   resolve: (result: LocationResult) => void
   timer: NodeJS.Timeout
@@ -271,23 +281,15 @@ type IosBridgeSession = {
 
 const iosBridgeSessions = new Map<string, IosBridgeSession>()
 
-function bridgeScriptPath() {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'scripts', 'ios_device_bridge.py')
-    : join(process.cwd(), 'scripts', 'ios_device_bridge.py')
-}
+async function createIosBridgeSession(udid: string): Promise<IosBridgeSession> {
+  const bridge = await resolveIosBridgeCommand(['--udid', udid])
+  if (!bridge) {
+    throw new Error(app.isPackaged
+      ? 'The bundled physical iOS bridge is missing from this macOS build.'
+      : 'pymobiledevice3 is not installed for development mode. Run: python3 -m pip install -U pymobiledevice3')
+  }
 
-async function createIosBridgeSession(udid: string, version?: string): Promise<IosBridgeSession> {
-  const python = await findPymobiledevicePython()
-  if (!python) throw new Error('pymobiledevice3 is not installed. Run: python3 -m pip install -U pymobiledevice3')
-
-  const pythonPrefix = python === 'py' ? ['-3'] : []
-  const child = spawn(python, [
-    ...pythonPrefix,
-    bridgeScriptPath(),
-    '--udid', udid,
-    '--ios-major', String(parseIosMajor(version || iosVersions.get(udid)))
-  ], {
+  const child = spawn(bridge.command, bridge.args, {
     stdio: ['pipe', 'pipe', 'pipe'],
     env: process.env
   }) as ChildProcessWithoutNullStreams
@@ -403,7 +405,7 @@ async function getIosBridgeSession(deviceId: string): Promise<IosBridgeSession> 
   const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
   const existing = iosBridgeSessions.get(udid)
   if (existing && !existing.child.killed) return existing
-  const session = await createIosBridgeSession(udid, iosVersions.get(udid))
+  const session = await createIosBridgeSession(udid)
   iosBridgeSessions.set(udid, session)
   return session
 }
