@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { app } from 'electron'
@@ -62,6 +62,24 @@ async function findPymobiledevicePython(): Promise<string | null> {
         for (const candidate of cliCandidates) {
           try {
             await run(candidate, ['--help'], 5000)
+
+            // pipx/uv/user installs expose a small executable script whose
+            // shebang points at the virtualenv Python that owns pymobiledevice3.
+            // Reuse that interpreter so the development bridge can import the
+            // same package instead of merely detecting the CLI.
+            if (candidate.startsWith('/')) {
+              try {
+                const firstLine = readFileSync(candidate, 'utf8').split('\\n', 1)[0]
+                const shebang = firstLine.match(/^#!\\s*(.+)$/)?.[1]?.trim()
+                if (shebang && existsSync(shebang)) {
+                  await run(shebang, ['-c', 'import pymobiledevice3; print("ok")'], 5000)
+                  return shebang
+                }
+              } catch {
+                // Fall back to CLI-only detection below.
+              }
+            }
+
             return `cli:${candidate}`
           } catch {
             // Try the next CLI installation.
