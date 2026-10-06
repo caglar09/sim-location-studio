@@ -86,7 +86,7 @@ async function findPymobiledevicePython(): Promise<string | null> {
                 }
 
                 const firstLine = readFileSync(resolvedCli, 'utf8').split('\n', 1)[0]
-                const shebang = firstLine.match(/^#!\\s*(.+)$/)?.[1]?.trim()
+                const shebang = firstLine.match(/^#!\s*(.+)$/)?.[1]?.trim()
                 if (shebang && existsSync(shebang)) {
                   await run(shebang, ['-c', 'import pymobiledevice3; print("ok")'], 5000)
                   return shebang
