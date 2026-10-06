@@ -576,7 +576,10 @@ async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promis
           'developer', 'dvt', 'simulate-location', 'set',
           '--udid', udid,
           '--', String(point.lat), String(point.lng)
-        ], 30000)
+        ], 90000, {
+          PYMOBILEDEVICE3_NATIVE: '1',
+          PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
+        })
         return { ok: true }
       } catch (error) {
         return {
@@ -604,7 +607,10 @@ async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResul
         await run(cli, [
           'developer', 'dvt', 'simulate-location', 'clear',
           '--udid', udid
-        ], 30000)
+        ], 90000, {
+          PYMOBILEDEVICE3_NATIVE: '1',
+          PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
+        })
         return { ok: true, message: 'Physical iOS simulated location cleared.' }
       } catch (error) {
         return {
