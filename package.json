@@ -16,9 +16,9 @@
     "typecheck": "tsc --noEmit",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build:ios-bridge && npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win",
+    "dist:win": "npm run build:ios-bridge && npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
-    "build:ios-bridge": "bash scripts/build_ios_bridge.sh"
+    "build:ios-bridge": "python scripts/build_ios_bridge.py"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.2.0",
@@ -70,7 +70,17 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.svg"
+      "icon": "build/icon.svg",
+      "extraResources": [
+        {
+          "from": "build/bin/ios-device-bridge.exe",
+          "to": "bin/ios-device-bridge.exe"
+        },
+        {
+          "from": "THIRD_PARTY_NOTICES.md",
+          "to": "THIRD_PARTY_NOTICES.md"
+        }
+      ]
     },
     "linux": {
       "category": "Development",
