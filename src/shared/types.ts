@@ -41,6 +41,17 @@ export interface LocationResult {
   message?: string
 }
 
+export type AppLogLevel = 'info' | 'success' | 'warn' | 'error'
+
+export interface AppLogEntry {
+  id: number
+  timestamp: string
+  level: AppLogLevel
+  source: string
+  message: string
+  detail?: string
+}
+
 
 export interface SearchResult {
   displayName: string
@@ -70,6 +81,8 @@ export interface AppBridge {
   buildRoute(request: RouteRequest): Promise<RouteResult>
   openLocationSettings(): Promise<boolean>
   getAppInfo(): Promise<{ version: string; platform: string }>
+  getLogs(): Promise<AppLogEntry[]>
+  clearLogs(): Promise<void>
 }
 
 declare global {
