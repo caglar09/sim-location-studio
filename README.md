@@ -146,3 +146,18 @@ The repository contains `android-companion/`, a small mock-location companion ap
 Once configured, the physical Android device becomes selectable just like an emulator.
 
 See [docs/PHYSICAL_DEVICES.md](docs/PHYSICAL_DEVICES.md) for setup and troubleshooting.
+
+
+### Windows + physical iPhone
+
+Windows release builds also bundle a self-contained `ios-device-bridge.exe`, so end users do not install Python or pymobiledevice3.
+
+Windows still needs Apple's official USB/device stack. Install **Apple Devices** (preferred on current Windows) or Apple's iTunes package so **Apple Mobile Device Support** is available. Then connect the iPhone, accept **Trust This Computer**, enable Developer Mode on supported iOS versions, and refresh devices.
+
+For a distributable Windows build:
+
+```bash
+npm run dist:win
+```
+
+The build freezes the bridge for Windows and embeds it into the installer/portable package.
