@@ -570,18 +570,37 @@ async function getIosBridgeSession(deviceId: string): Promise<IosBridgeSession> 
 export function disposePhysicalDeviceSessions() {
   for (const [, session] of iosBridgeSessions) session.dispose()
   iosBridgeSessions.clear()
+
+  for (const [, child] of physicalIosCliProcesses) {
+    if (!child.killed) child.kill('SIGINT')
+  }
+  physicalIosCliProcesses.clear()
 }
 
-async function runPymobiledeviceLocationCommand(command: string, args: string[], timeout = 30000): Promise<LocationResult> {
+const physicalIosCliProcesses = new Map<string, ChildProcessWithoutNullStreams>()
+
+async function runPymobiledeviceLocationCommand(
+  command: string,
+  args: string[],
+  timeout = 30000,
+  keepAliveKey?: string
+): Promise<LocationResult> {
+  if (keepAliveKey) {
+    const previous = physicalIosCliProcesses.get(keepAliveKey)
+    if (previous && !previous.killed) previous.kill('SIGINT')
+    physicalIosCliProcesses.delete(keepAliveKey)
+  }
+
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        PYTHONUNBUFFERED: '1',
         PYMOBILEDEVICE3_NATIVE: '1',
         PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
       }
-    })
+    }) as ChildProcessWithoutNullStreams
 
     let stdout = ''
     let stderr = ''
@@ -596,11 +615,13 @@ async function runPymobiledeviceLocationCommand(command: string, args: string[],
 
     const inspectOutput = () => {
       const combined = `${stdout}\n${stderr}`
-      // pymobiledevice3's DVT simulate-location command intentionally stays
-      // alive after applying the coordinate. This prompt means the location
-      // was applied and the process is waiting to be interrupted.
       if (/Press Ctrl\+C to send a SIGINT|use ['"]?kill['"]? command to send a SIGTERM/i.test(combined)) {
-        child.kill('SIGINT')
+        if (keepAliveKey) {
+          physicalIosCliProcesses.set(keepAliveKey, child)
+          finish({ ok: true })
+          return
+        }
+
         finish({ ok: true })
       }
     }
@@ -619,10 +640,16 @@ async function runPymobiledeviceLocationCommand(command: string, args: string[],
     })
 
     child.once('error', (error) => {
+      if (keepAliveKey && physicalIosCliProcesses.get(keepAliveKey) === child) {
+        physicalIosCliProcesses.delete(keepAliveKey)
+      }
       finish({ ok: false, message: error.message })
     })
 
     child.once('exit', (code) => {
+      if (keepAliveKey && physicalIosCliProcesses.get(keepAliveKey) === child) {
+        physicalIosCliProcesses.delete(keepAliveKey)
+      }
       if (settled) return
       if (code === 0) {
         finish({ ok: true })
@@ -681,6 +708,10 @@ async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResul
         message: 'pymobiledevice3 CLI was not found. Expected ~/.local/bin/pymobiledevice3, /opt/homebrew/bin/pymobiledevice3, /usr/local/bin/pymobiledevice3, or PATH.'
       }
     }
+
+    const active = physicalIosCliProcesses.get(udid)
+    if (active && !active.killed) active.kill('SIGINT')
+    physicalIosCliProcesses.delete(udid)
 
     const result = await runPymobiledeviceLocationCommand(cli, [
       'developer', 'dvt', 'simulate-location', 'clear',
