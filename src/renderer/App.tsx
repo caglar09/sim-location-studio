@@ -56,6 +56,8 @@ export default function App() {
     setDevices(nextDevices)
     setDiagnostics(nextDiagnostics)
     setSelectedId((current) => current && nextDevices.some((d) => d.id === current) ? current : nextDevices.find((d) => d.supported && (d.state === 'booted' || d.state === 'online'))?.id || nextDevices.find((d) => d.supported)?.id || '')
+    const physicalCount = nextDevices.filter((device) => device.kind === 'physical').length
+    setStatus(physicalCount > 0 ? `Ready · ${physicalCount} physical device${physicalCount === 1 ? '' : 's'} detected` : 'Ready')
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
