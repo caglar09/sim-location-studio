@@ -69,17 +69,43 @@ export async function diagnostics(): Promise<ToolStatus[]> {
   }
 
   let pymobiledevice3: ToolStatus
-  if (app.isPackaged && process.platform === 'darwin') {
+  if (app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32')) {
     const bridge = await resolveIosBridgeCommand(['--list'])
-    pymobiledevice3 = bridge
-      ? { id: 'pymobiledevice3', label: 'iOS physical bridge', available: true, version: 'Bundled' }
-      : { id: 'pymobiledevice3', label: 'iOS physical bridge', available: false, detail: 'Bundled bridge missing from app resources.' }
+    if (!bridge) {
+      pymobiledevice3 = {
+        id: 'pymobiledevice3',
+        label: 'iOS physical bridge',
+        available: false,
+        detail: 'Bundled physical iOS bridge is missing from application resources.'
+      }
+    } else {
+      try {
+        await run(bridge.command, bridge.args, 12000)
+        pymobiledevice3 = {
+          id: 'pymobiledevice3',
+          label: 'iOS physical bridge',
+          available: true,
+          version: 'Bundled'
+        }
+      } catch (error) {
+        const raw = error instanceof Error ? error.message : String(error)
+        const windowsHint = process.platform === 'win32'
+          ? ' Install Apple Devices or iTunes from Apple so Apple Mobile Device Support is available, then reconnect the iPhone.'
+          : ' Unlock the iPhone, trust this Mac, reconnect USB, and refresh devices.'
+        pymobiledevice3 = {
+          id: 'pymobiledevice3',
+          label: 'iOS physical bridge',
+          available: false,
+          detail: `${raw}${windowsHint}`
+        }
+      }
+    }
   } else if (!python) {
     pymobiledevice3 = {
       id: 'pymobiledevice3',
       label: 'pymobiledevice3',
       available: false,
-      detail: 'Development only: python3 -m pip install -U pymobiledevice3'
+      detail: 'Development only: install pymobiledevice3 in your local Python environment.'
     }
   } else {
     try {
@@ -138,8 +164,9 @@ type PymobileDevice = {
 
 async function resolveIosBridgeCommand(args: string[]): Promise<{ command: string; args: string[] } | null> {
   if (app.isPackaged) {
-    if (process.platform !== 'darwin') return null
-    const executable = join(process.resourcesPath, 'bin', 'ios-device-bridge')
+    if (process.platform !== 'darwin' && process.platform !== 'win32') return null
+    const executableName = process.platform === 'win32' ? 'ios-device-bridge.exe' : 'ios-device-bridge'
+    const executable = join(process.resourcesPath, 'bin', executableName)
     return existsSync(executable) ? { command: executable, args } : null
   }
 
@@ -285,8 +312,8 @@ async function createIosBridgeSession(udid: string): Promise<IosBridgeSession> {
   const bridge = await resolveIosBridgeCommand(['--udid', udid])
   if (!bridge) {
     throw new Error(app.isPackaged
-      ? 'The bundled physical iOS bridge is missing from this macOS build.'
-      : 'pymobiledevice3 is not installed for development mode. Run: python3 -m pip install -U pymobiledevice3')
+      ? 'The bundled physical iOS bridge is missing from this application build.'
+      : 'pymobiledevice3 is not installed for development mode. Install it in your local Python environment.')
   }
 
   const child = spawn(bridge.command, bridge.args, {
@@ -362,7 +389,9 @@ async function createIosBridgeSession(udid: string): Promise<IosBridgeSession> {
   })
 
   const readyTimer = setTimeout(() => {
-    readyReject(new Error('Timed out connecting to the physical iOS device. Verify Trust, Developer Mode and pymobiledevice3.'))
+    readyReject(new Error(process.platform === 'win32'
+      ? 'Timed out connecting to the physical iOS device. Verify Trust, Developer Mode, and Apple Mobile Device Support on Windows.'
+      : 'Timed out connecting to the physical iOS device. Verify Trust and Developer Mode.'))
     child.kill()
   }, 25000)
   ready.finally(() => clearTimeout(readyTimer)).catch(() => undefined)
