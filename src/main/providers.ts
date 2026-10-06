@@ -562,7 +562,7 @@ export function disposePhysicalDeviceSessions() {
   iosBridgeSessions.clear()
 }
 
-async function runPymobiledeviceLocationCommand(command: string, args: string[], timeout = 90000): Promise<LocationResult> {
+async function runPymobiledeviceLocationCommand(command: string, args: string[], timeout = 30000): Promise<LocationResult> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
