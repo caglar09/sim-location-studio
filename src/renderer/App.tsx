@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DeviceInfo, DiagnosticsSnapshot, GeoPoint, SearchResult, TravelMode } from '../shared/types'
 import MapCanvas from './components/MapCanvas'
+import LogPanel from './components/LogPanel'
 import appIcon from './assets/app-icon.svg'
 import { formatDistance, formatDuration, interpolateRoute, routeDistance } from './lib/geo'
 
@@ -43,6 +44,7 @@ export default function App() {
   const [favorites, setFavorites] = useState<Array<{ name: string; point: GeoPoint }>>(() => storage.get('favorites', []))
   const [controlsOpen, setControlsOpen] = useState(false)
   const [locationPermissionBlocked, setLocationPermissionBlocked] = useState(false)
+  const [logsOpen, setLogsOpen] = useState(false)
   const playbackToken = useRef(0)
 
   const selectedDevice = devices.find((d) => d.id === selectedId)
@@ -316,6 +318,7 @@ export default function App() {
         <div className="brand"><div className="brand-mark"><img src={appIcon} alt="" /></div><div><strong>Sim Location Studio</strong><span>Location simulation for app developers</span></div></div>
         <div className="top-actions">
           <button className="controls-toggle" onClick={() => setControlsOpen((open) => !open)} aria-expanded={controlsOpen}>☰ Controls</button>
+          <button onClick={() => setLogsOpen(true)}>Logs</button>
           <button className="refresh-button" onClick={refresh}>Refresh devices</button>
           <span className="status-pill">{status}</span>
         </div>
@@ -423,6 +426,7 @@ export default function App() {
           <p className="hint">Designed for development and QA. Location changes affect the selected simulator/emulator globally, so other apps inside it may also observe the simulated coordinate.</p>
         </section>
       </aside>
+      <LogPanel open={logsOpen} onClose={() => setLogsOpen(false)} />
     </div>
   )
 }
