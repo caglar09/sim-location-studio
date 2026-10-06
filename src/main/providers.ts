@@ -245,8 +245,8 @@ async function resolveIosBridgeCommand(args: string[]): Promise<{ command: strin
   }
 }
 
-async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
-  if (app.isPackaged || process.platform === 'win32') return []
+async function findPymobiledeviceCli(): Promise<string | null> {
+  if (app.isPackaged || process.platform === 'win32') return null
 
   const candidates = [
     join(homedir(), '.local', 'bin', 'pymobiledevice3'),
@@ -257,15 +257,27 @@ async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
 
   for (const candidate of candidates) {
     try {
-      const { stdout } = await run(candidate, ['usbmux', 'list'], 12000)
-      const parsed = JSON.parse(stdout) as PymobileDevice[]
-      return Array.isArray(parsed) ? parsed : []
+      await run(candidate, ['--help'], 5000)
+      return candidate
     } catch {
       // Try the next CLI location.
     }
   }
 
-  return []
+  return null
+}
+
+async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
+  const cli = await findPymobiledeviceCli()
+  if (!cli) return []
+
+  try {
+    const { stdout } = await run(cli, ['usbmux', 'list'], 12000)
+    const parsed = JSON.parse(stdout) as PymobileDevice[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
@@ -551,6 +563,30 @@ export function disposePhysicalDeviceSessions() {
 }
 
 async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promise<LocationResult> {
+  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
+
+  // In development on macOS, use pymobiledevice3's public CLI directly.
+  // This avoids depending on whichever Python interpreter happens to launch
+  // Electron while still targeting the exact connected device.
+  if (!app.isPackaged && process.platform === 'darwin') {
+    const cli = await findPymobiledeviceCli()
+    if (cli) {
+      try {
+        await run(cli, [
+          'developer', 'dvt', 'simulate-location', 'set',
+          '--udid', udid,
+          '--', String(point.lat), String(point.lng)
+        ], 30000)
+        return { ok: true }
+      } catch (error) {
+        return {
+          ok: false,
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }
+    }
+  }
+
   try {
     return await (await getIosBridgeSession(deviceId)).send('set', point)
   } catch (error) {
@@ -559,6 +595,26 @@ async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promis
 }
 
 async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResult> {
+  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
+
+  if (!app.isPackaged && process.platform === 'darwin') {
+    const cli = await findPymobiledeviceCli()
+    if (cli) {
+      try {
+        await run(cli, [
+          'developer', 'dvt', 'simulate-location', 'clear',
+          '--udid', udid
+        ], 30000)
+        return { ok: true, message: 'Physical iOS simulated location cleared.' }
+      } catch (error) {
+        return {
+          ok: false,
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }
+    }
+  }
+
   try {
     return await (await getIosBridgeSession(deviceId)).send('clear')
   } catch (error) {
