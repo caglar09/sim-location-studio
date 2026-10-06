@@ -245,26 +245,36 @@ async function resolveIosBridgeCommand(args: string[]): Promise<{ command: strin
   }
 }
 
+let pymobiledeviceCliPromise: Promise<string | null> | null = null
+
+function isDevelopmentRuntime() {
+  return Boolean(process.env.ELECTRON_RENDERER_URL) || !app.isPackaged
+}
+
 async function findPymobiledeviceCli(): Promise<string | null> {
-  if (app.isPackaged || process.platform === 'win32') return null
+  if (process.platform === 'win32') return null
+  if (pymobiledeviceCliPromise) return pymobiledeviceCliPromise
 
-  const candidates = [
-    join(homedir(), '.local', 'bin', 'pymobiledevice3'),
-    '/opt/homebrew/bin/pymobiledevice3',
-    '/usr/local/bin/pymobiledevice3',
-    'pymobiledevice3'
-  ]
+  pymobiledeviceCliPromise = (async () => {
+    const absoluteCandidates = [
+      join(homedir(), '.local', 'bin', 'pymobiledevice3'),
+      '/opt/homebrew/bin/pymobiledevice3',
+      '/usr/local/bin/pymobiledevice3'
+    ]
 
-  for (const candidate of candidates) {
-    try {
-      await run(candidate, ['--help'], 5000)
-      return candidate
-    } catch {
-      // Try the next CLI location.
+    for (const candidate of absoluteCandidates) {
+      if (existsSync(candidate)) return candidate
     }
-  }
 
-  return null
+    try {
+      await run('pymobiledevice3', ['--help'], 5000)
+      return 'pymobiledevice3'
+    } catch {
+      return null
+    }
+  })()
+
+  return pymobiledeviceCliPromise
 }
 
 async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
@@ -637,15 +647,20 @@ async function runPymobiledeviceLocationCommand(command: string, args: string[],
 async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promise<LocationResult> {
   const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
 
-  if (!app.isPackaged && process.platform === 'darwin') {
+  if (isDevelopmentRuntime() && process.platform === 'darwin') {
     const cli = await findPymobiledeviceCli()
-    if (cli) {
-      return runPymobiledeviceLocationCommand(cli, [
-        'developer', 'dvt', 'simulate-location', 'set',
-        '--udid', udid,
-        '--', String(point.lat), String(point.lng)
-      ])
+    if (!cli) {
+      return {
+        ok: false,
+        message: 'pymobiledevice3 CLI was not found. Expected ~/.local/bin/pymobiledevice3, /opt/homebrew/bin/pymobiledevice3, /usr/local/bin/pymobiledevice3, or PATH.'
+      }
     }
+
+    return runPymobiledeviceLocationCommand(cli, [
+      'developer', 'dvt', 'simulate-location', 'set',
+      '--udid', udid,
+      '--', String(point.lat), String(point.lng)
+    ])
   }
 
   try {
@@ -658,15 +673,20 @@ async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promis
 async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResult> {
   const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
 
-  if (!app.isPackaged && process.platform === 'darwin') {
+  if (isDevelopmentRuntime() && process.platform === 'darwin') {
     const cli = await findPymobiledeviceCli()
-    if (cli) {
-      const result = await runPymobiledeviceLocationCommand(cli, [
-        'developer', 'dvt', 'simulate-location', 'clear',
-        '--udid', udid
-      ])
-      return result.ok ? { ok: true, message: 'Physical iOS simulated location cleared.' } : result
+    if (!cli) {
+      return {
+        ok: false,
+        message: 'pymobiledevice3 CLI was not found. Expected ~/.local/bin/pymobiledevice3, /opt/homebrew/bin/pymobiledevice3, /usr/local/bin/pymobiledevice3, or PATH.'
+      }
     }
+
+    const result = await runPymobiledeviceLocationCommand(cli, [
+      'developer', 'dvt', 'simulate-location', 'clear',
+      '--udid', udid
+    ])
+    return result.ok ? { ok: true, message: 'Physical iOS simulated location cleared.' } : result
   }
 
   try {
