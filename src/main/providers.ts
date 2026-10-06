@@ -562,6 +562,78 @@ export function disposePhysicalDeviceSessions() {
   iosBridgeSessions.clear()
 }
 
+async function runPymobiledeviceLocationCommand(command: string, args: string[], timeout = 90000): Promise<LocationResult> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PYMOBILEDEVICE3_NATIVE: '1',
+        PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
+      }
+    })
+
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+
+    const finish = (result: LocationResult) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+
+    const inspectOutput = () => {
+      const combined = `${stdout}\n${stderr}`
+      // pymobiledevice3's DVT simulate-location command intentionally stays
+      // alive after applying the coordinate. This prompt means the location
+      // was applied and the process is waiting to be interrupted.
+      if (/Press Ctrl\+C to send a SIGINT|use ['"]?kill['"]? command to send a SIGTERM/i.test(combined)) {
+        child.kill('SIGINT')
+        finish({ ok: true })
+      }
+    }
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+      inspectOutput()
+    })
+
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk
+      inspectOutput()
+    })
+
+    child.once('error', (error) => {
+      finish({ ok: false, message: error.message })
+    })
+
+    child.once('exit', (code) => {
+      if (settled) return
+      if (code === 0) {
+        finish({ ok: true })
+      } else {
+        finish({
+          ok: false,
+          message: (stderr || stdout).trim() || `pymobiledevice3 exited with code ${code ?? 'unknown'}`
+        })
+      }
+    })
+
+    const timer = setTimeout(() => {
+      child.kill('SIGINT')
+      finish({
+        ok: false,
+        message: (stderr || stdout).trim() || 'pymobiledevice3 location command timed out.'
+      })
+    }, timeout)
+  })
+}
+
 async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promise<LocationResult> {
   const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
 
@@ -571,22 +643,11 @@ async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promis
   if (!app.isPackaged && process.platform === 'darwin') {
     const cli = await findPymobiledeviceCli()
     if (cli) {
-      try {
-        await run(cli, [
-          'developer', 'dvt', 'simulate-location', 'set',
-          '--udid', udid,
-          '--', String(point.lat), String(point.lng)
-        ], 90000, {
-          PYMOBILEDEVICE3_NATIVE: '1',
-          PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
-        })
-        return { ok: true }
-      } catch (error) {
-        return {
-          ok: false,
-          message: error instanceof Error ? error.message : String(error)
-        }
-      }
+      return runPymobiledeviceLocationCommand(cli, [
+        'developer', 'dvt', 'simulate-location', 'set',
+        '--udid', udid,
+        '--', String(point.lat), String(point.lng)
+      ])
     }
   }
 
@@ -603,21 +664,11 @@ async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResul
   if (!app.isPackaged && process.platform === 'darwin') {
     const cli = await findPymobiledeviceCli()
     if (cli) {
-      try {
-        await run(cli, [
-          'developer', 'dvt', 'simulate-location', 'clear',
-          '--udid', udid
-        ], 90000, {
-          PYMOBILEDEVICE3_NATIVE: '1',
-          PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
-        })
-        return { ok: true, message: 'Physical iOS simulated location cleared.' }
-      } catch (error) {
-        return {
-          ok: false,
-          message: error instanceof Error ? error.message : String(error)
-        }
-      }
+      const result = await runPymobiledeviceLocationCommand(cli, [
+        'developer', 'dvt', 'simulate-location', 'clear',
+        '--udid', udid
+      ])
+      return result.ok ? { ok: true, message: 'Physical iOS simulated location cleared.' } : result
     }
   }
 
