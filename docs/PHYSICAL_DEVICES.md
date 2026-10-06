@@ -73,3 +73,26 @@ The desktop app sends coordinates through an ADB broadcast that is protected wit
 ## Security and scope
 
 Physical-device location simulation is intended for development and QA. Sim Location Studio does not root, jailbreak, or permanently modify the target device. Clearing location simulation restores normal location behavior where the platform API supports it.
+
+
+## Windows physical iPhone
+
+Windows release builds include `Resources/bin/ios-device-bridge.exe` and do not require end users to install Python, pip, Homebrew, or pymobiledevice3.
+
+Requirements:
+
+1. Install Apple's current **Apple Devices** app or an Apple iTunes distribution that includes **Apple Mobile Device Support**.
+2. Connect the iPhone over USB.
+3. Accept **Trust This Computer**.
+4. Enable Developer Mode when required by the iOS version.
+5. Open Sim Location Studio and refresh devices.
+
+The bundled bridge handles device discovery and the persistent DVT location session. If Apple's USB/device service is unavailable, the Diagnostics panel reports the physical-iOS bridge as unavailable and suggests installing Apple Mobile Device Support.
+
+Repository developers can create a Windows distributable with:
+
+```powershell
+npm run dist:win
+```
+
+The build machine needs Python only at build time because PyInstaller freezes the helper into `ios-device-bridge.exe`. The end user's machine does not need Python.
