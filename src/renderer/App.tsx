@@ -24,6 +24,7 @@ const storage = {
 export default function App() {
   const [devices, setDevices] = useState<DeviceInfo[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
+  const [devicePlatform, setDevicePlatform] = useState<'ios' | 'android'>('ios')
   const [diagnostics, setDiagnostics] = useState<DiagnosticsSnapshot | null>(null)
   const [interaction, setInteraction] = useState<InteractionMode>('teleport')
   const [travelMode, setTravelMode] = useState<TravelMode>('walk')
@@ -49,6 +50,44 @@ export default function App() {
   const playbackToken = useRef(0)
 
   const selectedDevice = devices.find((d) => d.id === selectedId)
+  const visibleDevices = useMemo(() => {
+    return devices
+      .filter((device) => device.platform === devicePlatform)
+      .sort((a, b) => {
+        if (a.kind === 'physical' && b.kind !== 'physical') return -1
+        if (a.kind !== 'physical' && b.kind === 'physical') return 1
+
+        const aActive = a.state === 'online' || a.state === 'booted'
+        const bActive = b.state === 'online' || b.state === 'booted'
+        if (aActive && !bActive) return -1
+        if (!aActive && bActive) return 1
+
+        return a.name.localeCompare(b.name)
+      })
+  }, [devices, devicePlatform])
+
+  const switchDevicePlatform = useCallback((platform: 'ios' | 'android') => {
+    setDevicePlatform(platform)
+    setSelectedId((current) => {
+      const currentDevice = devices.find((device) => device.id === current)
+      if (currentDevice?.platform === platform) return current
+
+      const candidates = devices
+        .filter((device) => device.platform === platform)
+        .sort((a, b) => {
+          if (a.kind === 'physical' && b.kind !== 'physical') return -1
+          if (a.kind !== 'physical' && b.kind === 'physical') return 1
+          const aActive = a.state === 'online' || a.state === 'booted'
+          const bActive = b.state === 'online' || b.state === 'booted'
+          if (aActive && !bActive) return -1
+          if (!aActive && bActive) return 1
+          return a.name.localeCompare(b.name)
+        })
+
+      return candidates.find((device) => device.supported)?.id || candidates[0]?.id || ''
+    })
+  }, [devices])
+
   const speedKmh = travelMode === 'custom' ? customSpeed : SPEEDS[travelMode]
   const activeRoute = plannedPoints.length > 1 ? plannedPoints : routePoints
   const distance = useMemo(() => routeDistance(activeRoute), [activeRoute])
@@ -58,7 +97,24 @@ export default function App() {
     const [nextDevices, nextDiagnostics] = await Promise.all([window.simLocation.getDevices(), window.simLocation.getDiagnostics()])
     setDevices(nextDevices)
     setDiagnostics(nextDiagnostics)
-    setSelectedId((current) => current && nextDevices.some((d) => d.id === current) ? current : nextDevices.find((d) => d.supported && (d.state === 'booted' || d.state === 'online'))?.id || nextDevices.find((d) => d.supported)?.id || '')
+    setSelectedId((current) => {
+      if (current && nextDevices.some((device) => device.id === current)) return current
+
+      const preferred = [...nextDevices]
+        .sort((a, b) => {
+          if (a.kind === 'physical' && b.kind !== 'physical') return -1
+          if (a.kind !== 'physical' && b.kind === 'physical') return 1
+          const aActive = a.state === 'online' || a.state === 'booted'
+          const bActive = b.state === 'online' || b.state === 'booted'
+          if (aActive && !bActive) return -1
+          if (!aActive && bActive) return 1
+          return a.name.localeCompare(b.name)
+        })
+        .find((device) => device.supported)
+
+      if (preferred) setDevicePlatform(preferred.platform)
+      return preferred?.id || ''
+    })
     const physicalCount = nextDevices.filter((device) => device.kind === 'physical').length
     setStatus(physicalCount > 0 ? `Ready · ${physicalCount} physical device${physicalCount === 1 ? '' : 's'} detected` : 'Ready')
   }, [])
@@ -341,9 +397,13 @@ export default function App() {
         </div>
         <section>
           <h3>Target device</h3>
-          <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+          <div className="device-platform-tabs">
+            <button className={devicePlatform === 'ios' ? 'active' : ''} onClick={() => switchDevicePlatform('ios')}> iOS</button>
+            <button className={devicePlatform === 'android' ? 'active' : ''} onClick={() => switchDevicePlatform('android')}>◉ Android</button>
+          </div>
+          <select value={selectedDevice?.platform === devicePlatform ? selectedId : ''} onChange={(e) => setSelectedId(e.target.value)}>
             <option value="">Select a device…</option>
-            {devices.map((device) => <option key={device.id} value={device.id}>{device.kind === 'physical' ? '📱' : device.platform === 'ios' ? '' : '◉'} {device.name} · {device.kind} · {device.state}{device.supported ? '' : ' · setup required'}</option>)}
+            {visibleDevices.map((device) => <option key={device.id} value={device.id}>{device.kind === 'physical' ? '📱' : device.platform === 'ios' ? '' : '◉'} {device.name} · {device.kind} · {device.state}{device.supported ? '' : ' · setup required'}</option>)}
           </select>
           {selectedDevice && <div className="device-card"><strong>{selectedDevice.name}</strong><span>{selectedDevice.platform.toUpperCase()} · {selectedDevice.kind} · {selectedDevice.connection || 'local'} · {selectedDevice.osVersion || selectedDevice.model || selectedDevice.state}</span>{selectedDevice.provider && <small>Provider: {selectedDevice.provider}</small>}{selectedDevice.detail && <small>{selectedDevice.detail}</small>}</div>}
         </section>
