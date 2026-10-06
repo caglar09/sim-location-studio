@@ -85,7 +85,7 @@ async function findPymobiledevicePython(): Promise<string | null> {
                   }
                 }
 
-                const firstLine = readFileSync(resolvedCli, 'utf8').split('\\n', 1)[0]
+                const firstLine = readFileSync(resolvedCli, 'utf8').split('\n', 1)[0]
                 const shebang = firstLine.match(/^#!\\s*(.+)$/)?.[1]?.trim()
                 if (shebang && existsSync(shebang)) {
                   await run(shebang, ['-c', 'import pymobiledevice3; print("ok")'], 5000)
@@ -635,23 +635,10 @@ async function runPymobiledeviceLocationCommand(command: string, args: string[],
 }
 
 async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promise<LocationResult> {
-  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
-
-  // In development on macOS, use pymobiledevice3's public CLI directly.
-  // This avoids depending on whichever Python interpreter happens to launch
-  // Electron while still targeting the exact connected device.
-  if (!app.isPackaged && process.platform === 'darwin') {
-    const cli = await findPymobiledeviceCli()
-    if (cli) {
-      return runPymobiledeviceLocationCommand(cli, [
-        'developer', 'dvt', 'simulate-location', 'set',
-        '--udid', udid,
-        '--', String(point.lat), String(point.lng)
-      ])
-    }
-  }
-
   try {
+    // Keep one DVT/LocationSimulation session alive per physical iOS device.
+    // Closing the pymobiledevice3 CLI process can clear the simulated location
+    // on modern iOS, so location updates must go through the persistent bridge.
     return await (await getIosBridgeSession(deviceId)).send('set', point)
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) }
@@ -659,19 +646,6 @@ async function setPhysicalIosLocation(deviceId: string, point: GeoPoint): Promis
 }
 
 async function clearPhysicalIosLocation(deviceId: string): Promise<LocationResult> {
-  const udid = deviceId.replace(IOS_PHYSICAL_PREFIX, '')
-
-  if (!app.isPackaged && process.platform === 'darwin') {
-    const cli = await findPymobiledeviceCli()
-    if (cli) {
-      const result = await runPymobiledeviceLocationCommand(cli, [
-        'developer', 'dvt', 'simulate-location', 'clear',
-        '--udid', udid
-      ])
-      return result.ok ? { ok: true, message: 'Physical iOS simulated location cleared.' } : result
-    }
-  }
-
   try {
     return await (await getIosBridgeSession(deviceId)).send('clear')
   } catch (error) {
