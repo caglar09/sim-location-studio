@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { app } from 'electron'
@@ -69,7 +69,23 @@ async function findPymobiledevicePython(): Promise<string | null> {
             // same package instead of merely detecting the CLI.
             if (candidate.startsWith('/')) {
               try {
-                const firstLine = readFileSync(candidate, 'utf8').split('\\n', 1)[0]
+                const resolvedCli = realpathSync(candidate)
+                const siblingCandidates = [
+                  join(resolvedCli, '..', 'python'),
+                  join(resolvedCli, '..', 'python3')
+                ]
+
+                for (const sibling of siblingCandidates) {
+                  try {
+                    const resolvedPython = realpathSync(sibling)
+                    await run(resolvedPython, ['-c', 'import pymobiledevice3; print("ok")'], 5000)
+                    return resolvedPython
+                  } catch {
+                    // Try the next virtualenv interpreter candidate.
+                  }
+                }
+
+                const firstLine = readFileSync(resolvedCli, 'utf8').split('\\n', 1)[0]
                 const shebang = firstLine.match(/^#!\\s*(.+)$/)?.[1]?.trim()
                 if (shebang && existsSync(shebang)) {
                   await run(shebang, ['-c', 'import pymobiledevice3; print("ok")'], 5000)
