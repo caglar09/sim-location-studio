@@ -42,6 +42,9 @@ input:focus, select:focus { border-color: #4ca8d2; box-shadow: 0 0 0 3px #2d91bb
 .sidebar section, .right-panel section { padding: 16px; border-bottom: 1px solid var(--line); }
 h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #93a6c0; }
 .hint { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.device-platform-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.device-platform-tabs button { padding: 8px 10px; }
+.device-platform-tabs button.active { background: #183752; border-color: #3f9bc0; color: #dff8ff; }
 .device-card { margin-top: 10px; background: #0a1220; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .device-card strong, .device-card span, .device-card small { display: block; }.device-card span { color: #9fb0c8; font-size: 12px; margin-top: 4px; }.device-card small { color: #73849d; margin-top: 6px; line-height: 1.35; }
 .segmented, .movement-grid, .button-row, .playback-row { display: flex; gap: 7px; }.segmented button { flex: 1; }.movement-grid { display: grid; grid-template-columns: 1fr 1fr; }.movement-grid button { text-align: left; }
