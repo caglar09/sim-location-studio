@@ -229,13 +229,47 @@ async function resolveIosBridgeCommand(args: string[]): Promise<{ command: strin
   }
 }
 
+async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
+  if (app.isPackaged || process.platform === 'win32') return []
+
+  const candidates = [
+    join(homedir(), '.local', 'bin', 'pymobiledevice3'),
+    '/opt/homebrew/bin/pymobiledevice3',
+    '/usr/local/bin/pymobiledevice3',
+    'pymobiledevice3'
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      const { stdout } = await run(candidate, ['usbmux', 'list'], 12000)
+      const parsed = JSON.parse(stdout) as PymobileDevice[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      // Try the next CLI location.
+    }
+  }
+
+  return []
+}
+
 export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
   const bridge = await resolveIosBridgeCommand(['--list'])
-  if (!bridge) return []
+
+  let parsed: PymobileDevice[] = []
+  if (bridge) {
+    try {
+      const { stdout } = await run(bridge.command, bridge.args, 12000)
+      parsed = JSON.parse(stdout) as PymobileDevice[]
+    } catch {
+      // The source bridge can break when pymobiledevice3 changes internal APIs.
+      // In development, fall back to the stable public CLI used by the user.
+      parsed = await listIosPhysicalDevicesViaCli()
+    }
+  } else {
+    parsed = await listIosPhysicalDevicesViaCli()
+  }
 
   try {
-    const { stdout } = await run(bridge.command, bridge.args, 12000)
-    const parsed = JSON.parse(stdout) as PymobileDevice[]
     const byUdid = new Map<string, PymobileDevice>()
 
     for (const item of parsed) {
