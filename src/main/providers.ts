@@ -253,20 +253,26 @@ async function listIosPhysicalDevicesViaCli(): Promise<PymobileDevice[]> {
 }
 
 export async function listIosPhysicalDevices(): Promise<DeviceInfo[]> {
-  const bridge = await resolveIosBridgeCommand(['--list'])
-
   let parsed: PymobileDevice[] = []
-  if (bridge) {
-    try {
-      const { stdout } = await run(bridge.command, bridge.args, 12000)
-      parsed = JSON.parse(stdout) as PymobileDevice[]
-    } catch {
-      // The source bridge can break when pymobiledevice3 changes internal APIs.
-      // In development, fall back to the stable public CLI used by the user.
-      parsed = await listIosPhysicalDevicesViaCli()
-    }
-  } else {
+
+  if (!app.isPackaged && process.platform !== 'win32') {
+    // In development, prefer pymobiledevice3's public CLI for discovery.
+    // The source bridge may successfully return an empty list when internal
+    // pymobiledevice3 APIs change, which previously prevented the CLI fallback.
     parsed = await listIosPhysicalDevicesViaCli()
+  }
+
+  if (parsed.length === 0) {
+    const bridge = await resolveIosBridgeCommand(['--list'])
+    if (bridge) {
+      try {
+        const { stdout } = await run(bridge.command, bridge.args, 12000)
+        const bridgeDevices = JSON.parse(stdout) as PymobileDevice[]
+        parsed = Array.isArray(bridgeDevices) ? bridgeDevices : []
+      } catch {
+        // Keep the CLI result (if any). Packaged builds rely on the bundled bridge.
+      }
+    }
   }
 
   try {
