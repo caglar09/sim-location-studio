@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { promisify } from 'node:util'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { homedir } from 'node:os'
 import { app } from 'electron'
 import type { DeviceInfo, GeoPoint, LocationResult, ToolStatus } from '../shared/types'
 
@@ -45,6 +46,26 @@ async function findPymobiledevicePython(): Promise<string | null> {
           return candidate
         } catch {
           // Try the next Python installation.
+        }
+      }
+
+      // pipx/user installs commonly expose the CLI in ~/.local/bin while the
+      // Python that owns the package is not one of the interpreters above.
+      if (process.platform !== 'win32') {
+        const cliCandidates = [
+          join(homedir(), '.local', 'bin', 'pymobiledevice3'),
+          '/opt/homebrew/bin/pymobiledevice3',
+          '/usr/local/bin/pymobiledevice3',
+          'pymobiledevice3'
+        ]
+
+        for (const candidate of cliCandidates) {
+          try {
+            await run(candidate, ['--help'], 5000)
+            return `cli:${candidate}`
+          } catch {
+            // Try the next CLI installation.
+          }
         }
       }
       return null
@@ -109,11 +130,15 @@ export async function diagnostics(): Promise<ToolStatus[]> {
     }
   } else {
     try {
-      const versionArgs = python === 'py'
-        ? ['-3', '-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
-        : ['-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
-      const { stdout } = await run(python, versionArgs, 5000)
-      pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: stdout.trim() }
+      if (python.startsWith('cli:')) {
+        pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: 'Available' }
+      } else {
+        const versionArgs = python === 'py'
+          ? ['-3', '-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
+          : ['-c', 'import importlib.metadata; print(importlib.metadata.version("pymobiledevice3"))']
+        const { stdout } = await run(python, versionArgs, 5000)
+        pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: stdout.trim() }
+      }
     } catch {
       pymobiledevice3 = { id: 'pymobiledevice3', label: 'pymobiledevice3', available: true, version: 'Available' }
     }
@@ -172,6 +197,13 @@ async function resolveIosBridgeCommand(args: string[]): Promise<{ command: strin
 
   const python = await findPymobiledevicePython()
   if (!python) return null
+  if (python.startsWith('cli:')) {
+    // The bridge itself imports pymobiledevice3, so a standalone CLI cannot
+    // execute it. Keep diagnostics accurate, but require a matching Python
+    // interpreter for physical-device bridge development.
+    return null
+  }
+
   const prefix = python === 'py' ? ['-3'] : []
   return {
     command: python,
