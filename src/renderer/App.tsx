@@ -45,6 +45,7 @@ export default function App() {
   const [controlsOpen, setControlsOpen] = useState(false)
   const [locationPermissionBlocked, setLocationPermissionBlocked] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
+  const [locationPending, setLocationPending] = useState(false)
   const playbackToken = useRef(0)
 
   const selectedDevice = devices.find((d) => d.id === selectedId)
@@ -139,11 +140,19 @@ export default function App() {
   const inject = useCallback(async (point: GeoPoint) => {
     if (!selectedDevice) { setStatus('Select a supported simulator/emulator first.'); return false }
     if (!selectedDevice.supported) { setStatus(selectedDevice.detail || 'This device is not supported for direct injection.'); return false }
-    const result = await window.simLocation.setLocation(selectedDevice.id, selectedDevice.platform, point)
-    if (!result.ok) { setStatus(result.message || 'Location injection failed.'); return false }
-    setCursor(point)
-    setStatus(`${selectedDevice.name} → ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`)
-    return true
+
+    setLocationPending(true)
+    setStatus(`Applying location to ${selectedDevice.name}…`)
+
+    try {
+      const result = await window.simLocation.setLocation(selectedDevice.id, selectedDevice.platform, point)
+      if (!result.ok) { setStatus(result.message || 'Location injection failed.'); return false }
+      setCursor(point)
+      setStatus(`${selectedDevice.name} → ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`)
+      return true
+    } finally {
+      setLocationPending(false)
+    }
   }, [selectedDevice])
 
   async function handleMapClick(point: GeoPoint) {
@@ -320,7 +329,7 @@ export default function App() {
           <button className="controls-toggle" onClick={() => setControlsOpen((open) => !open)} aria-expanded={controlsOpen}>☰ Controls</button>
           <button onClick={() => setLogsOpen(true)}>Logs</button>
           <button className="refresh-button" onClick={refresh}>Refresh devices</button>
-          <span className="status-pill">{status}</span>
+          <span className={`status-pill${locationPending ? ' pending' : ''}`}>{locationPending && <span className="status-spinner" aria-hidden="true" />}{status}</span>
         </div>
       </header>
 
