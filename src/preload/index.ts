@@ -9,7 +9,9 @@ const api: AppBridge = {
   searchPlaces: (query: string) => ipcRenderer.invoke('places:search', query),
   buildRoute: (request: RouteRequest) => ipcRenderer.invoke('route:build', request),
   openLocationSettings: () => ipcRenderer.invoke('system:open-location-settings'),
-  getAppInfo: () => ipcRenderer.invoke('app:info')
+  getAppInfo: () => ipcRenderer.invoke('app:info'),
+  getLogs: () => ipcRenderer.invoke('logs:get'),
+  clearLogs: () => ipcRenderer.invoke('logs:clear')
 }
 
 contextBridge.exposeInMainWorld('simLocation', api)
