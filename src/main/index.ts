@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import os from 'node:os'
 import { diagnostics, listDevices, setLocation, clearLocation, disposePhysicalDeviceSessions } from './providers'
 import type { GeoPoint, RouteRequest, RouteResult, SearchResult } from '../shared/types'
+import { addLog, clearLogs, getLogs } from './logger'
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -179,16 +180,58 @@ async function searchPlaces(query: string): Promise<SearchResult[]> {
 }
 
 app.whenReady().then(() => {
+  addLog('info', 'app', `Sim Location Studio started · ${process.platform}/${os.arch()}`)
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => permission === 'geolocation')
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'geolocation')
   })
-  ipcMain.handle('devices:list', () => listDevices())
-  ipcMain.handle('diagnostics:get', async () => ({ platform: process.platform, arch: os.arch(), tools: await diagnostics() }))
-  ipcMain.handle('location:set', (_event, platform, deviceId, point) => setLocation(platform, deviceId, point))
-  ipcMain.handle('location:clear', (_event, platform, deviceId) => clearLocation(platform, deviceId))
-  ipcMain.handle('places:search', (_event, query) => searchPlaces(query))
-  ipcMain.handle('route:build', (_event, request) => buildRoute(request))
+  ipcMain.handle('devices:list', async () => {
+    try {
+      const devices = await listDevices()
+      addLog('success', 'devices', `Detected ${devices.length} device(s)`)
+      return devices
+    } catch (error) {
+      addLog('error', 'devices', 'Device discovery failed', error)
+      throw error
+    }
+  })
+  ipcMain.handle('diagnostics:get', async () => {
+    try {
+      const tools = await diagnostics()
+      addLog('success', 'diagnostics', `Environment check completed · ${tools.filter((tool) => tool.available).length}/${tools.length} available`)
+      return { platform: process.platform, arch: os.arch(), tools }
+    } catch (error) {
+      addLog('error', 'diagnostics', 'Environment check failed', error)
+      throw error
+    }
+  })
+  ipcMain.handle('location:set', async (_event, platform, deviceId, point) => {
+    const result = await setLocation(platform, deviceId, point)
+    addLog(result.ok ? 'success' : 'error', 'location', `Set location on ${deviceId} → ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`, result.message)
+    return result
+  })
+  ipcMain.handle('location:clear', async (_event, platform, deviceId) => {
+    const result = await clearLocation(platform, deviceId)
+    addLog(result.ok ? 'success' : 'error', 'location', `Clear location on ${deviceId}`, result.message)
+    return result
+  })
+  ipcMain.handle('places:search', async (_event, query) => {
+    try {
+      const results = await searchPlaces(query)
+      addLog('success', 'search', `Search "${query}" · ${results.length} result(s)`)
+      return results
+    } catch (error) {
+      addLog('error', 'search', `Search failed: "${query}"`, error)
+      throw error
+    }
+  })
+  ipcMain.handle('route:build', async (_event, request) => {
+    const result = await buildRoute(request)
+    addLog(result.warning ? 'warn' : 'success', 'route', `Route built · ${result.source} · ${result.points.length} point(s)`, result.warning)
+    return result
+  })
+  ipcMain.handle('logs:get', () => getLogs())
+  ipcMain.handle('logs:clear', () => clearLogs())
   ipcMain.handle('system:open-location-settings', async () => {
     if (process.platform !== 'darwin') return false
     try {
