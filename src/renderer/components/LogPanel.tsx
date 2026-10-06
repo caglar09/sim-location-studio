@@ -34,6 +34,15 @@ export default function LogPanel({ open, onClose }: { open: boolean; onClose(): 
     setLogs(await window.simLocation.getLogs())
   }
 
+  const copy = async () => {
+    const text = visibleLogs.map((entry) => {
+      const detail = entry.detail ? `\n  ${entry.detail}` : ''
+      return `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}${detail}`
+    }).join('\n')
+
+    await navigator.clipboard.writeText(text)
+  }
+
   return (
     <div className="log-panel">
       <div className="log-panel-head">
@@ -46,6 +55,7 @@ export default function LogPanel({ open, onClose }: { open: boolean; onClose(): 
             <option value="warn">Warnings</option>
             <option value="error">Errors</option>
           </select>
+          <button onClick={copy} disabled={!visibleLogs.length}>Copy</button>
           <button onClick={clear}>Clear</button>
           <button onClick={onClose}>Close</button>
         </div>
