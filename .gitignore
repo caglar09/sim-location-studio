@@ -1,6 +1,8 @@
 node_modules/
+.venv/
 out/
 dist/
+web-dist/
 .DS_Store
 *.log
 .env

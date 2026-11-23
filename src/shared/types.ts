@@ -1,7 +1,7 @@
 export type Platform = 'ios' | 'android'
 export type DeviceKind = 'simulator' | 'emulator' | 'physical'
 export type LocationProviderId = 'ios-simctl' | 'ios-pymobiledevice3' | 'android-emulator' | 'android-companion'
-export type TravelMode = 'walk' | 'bike' | 'drive' | 'custom'
+export type TravelMode = 'walk' | 'bike' | 'drive' | 'train' | 'custom'
 
 export interface GeoPoint {
   lat: number
@@ -20,6 +20,7 @@ export interface DeviceInfo {
   provider?: LocationProviderId
   connection?: 'usb' | 'network' | 'local'
   detail?: string
+  simulatedLocation?: GeoPoint
 }
 
 export interface ToolStatus {
@@ -62,13 +63,41 @@ export interface SearchResult {
 export interface RouteRequest {
   points: GeoPoint[]
   mode: TravelMode
+  legModes?: TravelMode[]
+  departureAt?: string
+  stopDurationsMinutes?: number[]
   snapToRoads: boolean
+}
+
+export interface PlannedRouteLeg {
+  mode: TravelMode
+  source: 'valhalla' | 'opentripplanner' | 'via-rail-gtfs' | 'manual'
+  distanceMeters: number
+  durationSeconds: number
+  speedSegments?: RouteSpeedSegment[]
+  waitingSeconds?: number
+  departureAt?: string
+  arrivalAt?: string
+  warning?: string
+}
+
+export interface RouteSpeedSegment {
+  startDistanceMeters: number
+  endDistanceMeters: number
+  distanceMeters: number
+  durationSeconds: number
+  speedKmh: number
+  roadType: 'city' | 'highway' | 'train' | 'walk' | string
 }
 
 export interface RouteResult {
   points: GeoPoint[]
   distanceMeters: number
-  source: 'valhalla' | 'manual'
+  source: 'valhalla' | 'opentripplanner' | 'via-rail-gtfs' | 'manual'
+  durationSeconds?: number
+  breakIndices?: number[]
+  legs?: PlannedRouteLeg[]
+  speedSegments?: RouteSpeedSegment[]
   warning?: string
 }
 

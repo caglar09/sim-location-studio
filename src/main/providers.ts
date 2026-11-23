@@ -600,7 +600,7 @@ async function runPymobiledeviceLocationCommand(
         PYMOBILEDEVICE3_NATIVE: '1',
         PYMOBILEDEVICE3_DEFAULT_FALLBACK: 'native'
       }
-    }) as ChildProcessWithoutNullStreams
+    }) as unknown as ChildProcessWithoutNullStreams
 
     let stdout = ''
     let stderr = ''

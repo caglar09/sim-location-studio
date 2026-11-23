@@ -11,7 +11,8 @@ type PlaybackState = 'idle' | 'playing' | 'paused'
 const SPEEDS: Record<Exclude<TravelMode, 'custom'>, number> = {
   walk: 5,
   bike: 18,
-  drive: 50
+  drive: 50,
+  train: 100
 }
 
 const storage = {
@@ -227,6 +228,7 @@ export default function App() {
 
   async function prepareRoute() {
     if (routePoints.length < 2) { setStatus('Add at least two route points.'); return }
+    if (travelMode === 'train') { setStatus('Train routing is available in the web app when OpenTripPlanner is configured.'); return }
     setStatus('Building route…')
     const result = await window.simLocation.buildRoute({ points: routePoints, mode: travelMode, snapToRoads })
     setProgress(0)

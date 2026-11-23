@@ -1,0 +1,37 @@
+.phone-control-drawer { position: absolute; z-index: 15; inset: 0 0 0 auto; width: min(410px, 48%); min-width: 300px; display: flex; flex-direction: column; background: #f4f3ec; border-left: 1px solid #d9d8cd; box-shadow: -14px 0 44px #19201d32; animation: phone-drawer-in .2s ease-out; }
+.phone-drawer-header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 15px; background: #fbfaf4; border-bottom: 1px solid #deded3; }
+.phone-drawer-title { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.phone-drawer-title h2 { margin: 0; color: #20261f; font-size: 13px; letter-spacing: -.025em; }
+.phone-drawer-title p { margin: 3px 0 0; overflow: hidden; color: #737970; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-drawer-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.studio-shell .phone-drawer-action { min-height: 58px; padding: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #334322; background: linear-gradient(150deg, #fffffff0, #e9f3cc9c); border: 1px solid #ffffffd9; border-radius: 16px; box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 #73902d24, 0 2px 4px #3c50251a, 0 5px 12px #46592117; backdrop-filter: blur(12px); }
+.studio-shell .phone-drawer-action:not(:disabled):hover { background: linear-gradient(150deg, #fff, #d8ecaecc); }
+.studio-shell .phone-drawer-action svg { width: 20px; height: 20px; }
+.phone-drawer-action b { font-size: 12px; }
+.phone-drawer-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.studio-shell .phone-header-action { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; color: #536145; background: #eeeee5; }
+.studio-shell .phone-header-action:hover, .studio-shell .phone-header-action[aria-expanded='true'] { background: #e7efcf; }
+.phone-header-action:focus-visible { outline: 3px solid #8aa82c88; outline-offset: 2px; }
+.phone-vnc-settings { flex: 0 0 auto; padding: 12px 15px; background: #fbfaf4; border-bottom: 1px solid #deded3; }
+.phone-drawer-icon { width: 34px; height: 34px; display: grid; place-items: center; color: #506a24; background: #e7f3b9; border-radius: 10px; }
+.phone-drawer-icon svg { width: 17px; height: 17px; }
+.phone-drawer-screen { position: relative; min-height: 0; flex: 1; background: #141a18; }
+.phone-vnc-display { position: absolute; inset: 0; }
+.phone-drawer-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 11px; padding: 20px; color: #edf0e8; background: #141a18; text-align: center; }
+.phone-vnc-auth { width: min(100%, 230px); }
+.phone-drawer-error .phone-vnc-auth label { color: #edf0e8; text-align: left; }
+.phone-drawer-error > .button-primary { min-height: 34px; padding: 0 12px; background: var(--acid); }
+.phone-drawer-error > svg { width: 34px; height: 34px; color: #d2f35b; }
+.phone-drawer-error b { font-size: 13px; }
+.phone-drawer-error span { max-width: 270px; color: #aeb7af; font-size: 10px; line-height: 1.5; }
+.phone-drawer-footer { padding: 12px 14px; background: radial-gradient(ellipse at 85% 100%, #d8eab7, transparent 75%), #f0f1e6; border-top: 1px solid #dfe4d3; }
+.phone-control-connect { display: grid; gap: 6px; }
+.phone-control-connect label { color: #61685f; font-size: 9px; font-weight: 700; }
+.phone-control-connect input { width: 100%; min-width: 0; height: 35px; padding: 0 9px; color: var(--ink); background: var(--paper-raised); border: 1px solid #d8d8cd; border-radius: 8px; font-size: 10px; }
+.phone-control-connect .button-primary { min-height: 34px; margin-top: 2px; padding: 0 10px; background: var(--acid); font-size: 10px; font-weight: 800; }
+.phone-control-error { margin: 0; color: #a1463f; font-size: 9px; line-height: 1.4; }
+.phone-control-security { margin: 8px 0 0; color: #9a7867; font-size: 8px; line-height: 1.4; }
+@keyframes phone-drawer-in { from { opacity: .7; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+@media (max-width: 720px) {
+  .phone-control-drawer { inset: 0 0 0 auto; width: min(410px, 90%); min-width: 0; }
+}
