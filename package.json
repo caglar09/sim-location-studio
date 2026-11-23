@@ -10,8 +10,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev-web.mjs",
+    "dev:desktop": "electron-vite dev",
     "build": "electron-vite build",
+    "build:web": "vite build --config vite.web.config.ts",
+    "start:web": "node server/index.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "dist": "npm run build && electron-builder",
@@ -21,6 +24,7 @@
     "build:ios-bridge": "python scripts/build_ios_bridge.py"
   },
   "dependencies": {
+    "@novnc/novnc": "1.7.0",
     "@vitejs/plugin-react": "5.2.0",
     "maplibre-gl": "6.11.2",
     "react": "19.3.0",
@@ -28,6 +32,7 @@
   },
   "devDependencies": {
     "@types/node": "latest",
+    "@types/novnc__novnc": "1.6.0",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "electron": "44.5.1",

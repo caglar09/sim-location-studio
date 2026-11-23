@@ -4,6 +4,38 @@ A developer-focused desktop app for visually simulating GPS/location on **iOS Si
 
 Instead of manually juggling `simctl`, `adb`, mock-location apps, and physical-device tooling, Sim Location Studio provides one interactive map, route editor, device selector, diagnostics panel, and playback engine for location-based application testing.
 
+## Browser app for a VM
+
+The browser version is the primary interface for running the studio on a VM and opening it from another device on the same network.
+
+```bash
+npm install
+python3 -m venv .venv
+.venv/bin/pip install 'pymobiledevice3==11.12.4'
+npm run dev
+```
+
+Open `http://localhost:4173`. The development command prints an access token; enter it in the web app. To open it from another computer on your LAN, use `http://<VM-IP>:4173` and the same token. Hot reload is enabled.
+
+For a production build and server:
+
+```bash
+npm run build:web
+SIM_LOCATION_TOKEN='choose-a-long-private-token' npm run start:web
+```
+
+The production server listens on port `4173` by default. Configure `PORT` or `HOST` to change it. The web server discovers and controls a trusted USB iPhone locally through `pymobiledevice3`; `LOCATION_AGENT_URL` can override it with a separate bridge. Set `OTP_BASE_URL` to an OpenTripPlanner server backed by transit GTFS data to enable train itineraries. See [the web architecture and device bridge contract](docs/WEB_ARCHITECTURE.md).
+
+The browser app supports dated trips, ordered stops, a separate travel mode for each segment, and visible route playback. Walking/driving paths use Valhalla. Train segments use OpenTripPlanner timetables when configured; without GTFS data they are shown as a clearly marked straight-line estimate. Playback is a local map preview and never changes the connected phone's location. USB discovery shows basic iPhone details, but jailbreak status is not available from standard device metadata.
+
+## Desktop app
+
+The original Electron app remains available for local simulator workflows:
+
+```bash
+npm run dev:desktop
+```
+
 ## Highlights
 
 - 🗺️ Interactive OpenStreetMap / MapLibre map
@@ -108,7 +140,7 @@ See [docs/PHYSICAL_DEVICES.md](docs/PHYSICAL_DEVICES.md) for detailed setup and 
 git clone https://github.com/caglar09/sim-location-studio.git
 cd sim-location-studio
 npm install
-npm run dev
+npm run dev:desktop
 ```
 
 Source-mode physical iPhone development uses your local Python environment:

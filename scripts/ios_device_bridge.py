@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import sys
+from contextlib import AsyncExitStack
 
 
 def emit(payload):
@@ -106,16 +107,53 @@ async def run_modern(udid):
 
 
 async def run_legacy(udid):
+    from pymobiledevice3.exceptions import AlreadyMountedError, ConnectionTerminatedError, InvalidConnectionError
     from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.mobile_image_mounter import auto_mount_developer
     from pymobiledevice3.services.simulate_location import DtSimulateLocation
 
-    lockdown = await create_using_usbmux(serial=udid)
-    async with lockdown:
-        location = DtSimulateLocation(lockdown)
-        await command_loop(location)
+    async with AsyncExitStack() as connections:
+        async def connect():
+            return await connections.enter_async_context(await create_using_usbmux(serial=udid))
+
+        lockdown = await connect()
+        if int(lockdown.product_version.split(".", 1)[0]) >= 16 and not await lockdown.get_developer_mode_status():
+            raise RuntimeError("Active le mode développeur dans les réglages de l’iPhone pour simuler sa position.")
+        try:
+            await auto_mount_developer(lockdown)
+        except AlreadyMountedError:
+            pass
+        service = await lockdown.start_lockdown_developer_service(DtSimulateLocation.SERVICE_NAME)
+        await service.close()
+
+        class LegacyLocation:
+            async def run(self, action, *args):
+                nonlocal lockdown
+                try:
+                    await action(DtSimulateLocation(lockdown), *args)
+                except (OSError, ConnectionTerminatedError, InvalidConnectionError):
+                    await connections.aclose()
+                    lockdown = await connect()
+                    await action(DtSimulateLocation(lockdown), *args)
+
+            async def set(self, latitude, longitude):
+                await self.run(DtSimulateLocation.set, latitude, longitude)
+
+            async def clear(self):
+                await self.run(DtSimulateLocation.clear)
+
+        await command_loop(LegacyLocation())
 
 
 async def run_device(udid):
+    from pymobiledevice3.lockdown import create_using_usbmux
+
+    async with await create_using_usbmux(serial=udid) as lockdown:
+        ios_major = int(lockdown.product_version.split(".", 1)[0])
+    if ios_major < 17:
+        await run_legacy(udid)
+        return
+
     modern_error = None
     try:
         await run_modern(udid)
